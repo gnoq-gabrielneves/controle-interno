@@ -1,6 +1,7 @@
 import {
   CreateOrcamento,
   GetOrcamento,
+  GetOrcamentosStats,
   ListOrcamentos,
   UpdateOrcamento,
   UpdateOrcamentoStatus,
@@ -72,5 +73,12 @@ export function useUpdateOrcamento(id: string) {
       toast.error("Erro ao atualizar orçamento.");
       console.error(error.message);
     },
+  });
+}
+
+export function useOrcamentosStats() {
+  return useQuery({
+    queryKey: ["orcamentos-stats"],
+    queryFn: GetOrcamentosStats,
   });
 }

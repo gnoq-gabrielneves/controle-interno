@@ -164,3 +164,14 @@ export async function UpdateOrcamento(id: string, input: CreateOrcamentoInput) {
     }
   }
 }
+
+export async function GetOrcamentosStats() {
+  const { data, error } = await supabase
+    .from("orcamentos")
+    .select(
+      "id, status, created_at, margem_lucro, aliquota_imposto, orcamento_itens(id, orcamento_item_funcionarios(horas, funcionario_data:funcionarios(salario)))",
+    );
+
+  if (error) throw new Error(error.message);
+  return data;
+}
