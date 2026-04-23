@@ -26,7 +26,7 @@ export async function GetOrcamento(id: string) {
     .from("orcamentos")
     .select(
       `
-      id, titulo, status, margem_lucro, aliquota_imposto,
+      id, titulo, status, numero, margem_lucro, aliquota_imposto,
       validade_dias, observacoes, created_at,
       cliente (id, nome, email, cpf_cnpj, telefone, logradouro, numero, cidade, estado),
       orcamento_itens (

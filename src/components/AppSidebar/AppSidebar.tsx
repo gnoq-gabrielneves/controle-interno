@@ -1,4 +1,5 @@
 "use client";
+
 import {
   DollarSignIcon,
   GemIcon,
@@ -7,6 +8,7 @@ import {
   UserIcon,
   VerifiedIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import {
@@ -21,11 +23,6 @@ import {
   SidebarMenuItem,
 } from "../ui/sidebar";
 
-/*
- * DEFINIÇÃO DAS ROTAS
- * - centraliza tudo num array pra facilitar adicionar novos itens
- * - cada item tem: label, url e ícone
- */
 const menuItems = {
   geral: [{ label: "Home", url: "/home", icon: HomeIcon }],
   pessoas: [
@@ -40,43 +37,29 @@ const menuItems = {
 };
 
 export function AppSidebar() {
-  /*
-   * usePathname: retorna a URL atual ex: "/home"
-   * usamos pra comparar com o url de cada item e saber qual está ativo
-   */
   const pathname = usePathname();
 
-  /*
-   * FUNÇÃO HELPER
-   * - recebe a url do item e retorna as classes certas
-   * - ativo: fundo azul + texto azul claro
-   * - inativo: texto apagado com hover azul sutil
-   */
-  function menuButtonClass(url: string) {
-    const isActive = pathname === url;
-    return isActive
-      ? "bg-sky-500/15 text-sky-300 hover:bg-sky-500/20 hover:text-sky-300"
-      : "text-white/50 hover:bg-sky-500/10 hover:text-sky-300 transition-all";
+  function isActive(url: string) {
+    return pathname === url || pathname.startsWith(url + "/");
   }
 
   return (
     <Sidebar>
       <SidebarContent>
-        {/* GRUPO: GERAL */}
         <SidebarGroup>
           <SidebarGroupLabel>Geral</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.geral.map((item) => (
                 <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton className={menuButtonClass(item.url)}>
-                    <a
+                  <SidebarMenuButton isActive={isActive(item.url)}>
+                    <Link
                       href={item.url}
-                      className="flex flex-row gap-1.5 items-center"
+                      className="flex items-center gap-2 w-full"
                     >
-                      <item.icon className="w-4 h-4" />
+                      <item.icon className="w-4 h-4 shrink-0" />
                       <span>{item.label}</span>
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -84,21 +67,20 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* GRUPO: PESSOAS */}
         <SidebarGroup>
           <SidebarGroupLabel>Pessoas</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.pessoas.map((item) => (
                 <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton className={menuButtonClass(item.url)}>
-                    <a
+                  <SidebarMenuButton isActive={isActive(item.url)}>
+                    <Link
                       href={item.url}
-                      className="flex flex-row gap-1.5 items-center"
+                      className="flex items-center gap-2 w-full"
                     >
-                      <item.icon className="w-4 h-4" />
+                      <item.icon className="w-4 h-4 shrink-0" />
                       <span>{item.label}</span>
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -106,21 +88,20 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* GRUPO: INVESTIMENTOS */}
         <SidebarGroup>
           <SidebarGroupLabel>Investimentos</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.investimentos.map((item) => (
                 <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton className={menuButtonClass(item.url)}>
-                    <a
+                  <SidebarMenuButton isActive={isActive(item.url)}>
+                    <Link
                       href={item.url}
-                      className="flex flex-row gap-1.5 items-center"
+                      className="flex items-center gap-2 w-full"
                     >
-                      <item.icon className="w-4 h-4" />
+                      <item.icon className="w-4 h-4 shrink-0" />
                       <span>{item.label}</span>
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -129,7 +110,6 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* FOOTER: USUÁRIO */}
       <SidebarFooter className="border-t border-white/10">
         <SidebarMenu>
           <SidebarMenuItem>

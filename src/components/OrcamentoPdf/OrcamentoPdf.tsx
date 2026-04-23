@@ -559,16 +559,6 @@ export function OrcamentoPDF({
               Válido até {validade.toLocaleDateString("pt-BR")}
             </Text>
           </View>
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: st.bg, borderColor: st.border },
-            ]}
-          >
-            <Text style={[styles.statusText, { color: st.color }]}>
-              {st.label}
-            </Text>
-          </View>
         </View>
 
         {/* ── DADOS DO CLIENTE ── */}
@@ -668,7 +658,7 @@ export function OrcamentoPDF({
 
         {/* ── OBSERVAÇÕES / CONDIÇÕES DE PAGAMENTO ── */}
         {observacoes && (
-          <View style={styles.obsCard}>
+          <View wrap={false} style={styles.obsCard}>
             <Text style={styles.cardLabel}>
               Condições de pagamento e observações
             </Text>
