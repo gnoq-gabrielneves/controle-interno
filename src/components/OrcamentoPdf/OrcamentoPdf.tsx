@@ -650,16 +650,6 @@ export function OrcamentoPDF({
           );
         })}
 
-        {/* ── OBSERVAÇÕES / CONDIÇÕES DE PAGAMENTO ── */}
-        {observacoes && (
-          <View style={styles.obsCard}>
-            <Text style={styles.cardLabel}>
-              Condições de pagamento e observações
-            </Text>
-            <Text style={styles.obsText}>{observacoes}</Text>
-          </View>
-        )}
-
         {/* ── TOTAL ── */}
         <View style={styles.totalCard} wrap={false}>
           <View>
@@ -675,6 +665,16 @@ export function OrcamentoPDF({
             </Text>
           </View>
         </View>
+
+        {/* ── OBSERVAÇÕES / CONDIÇÕES DE PAGAMENTO ── */}
+        {observacoes && (
+          <View style={styles.obsCard}>
+            <Text style={styles.cardLabel}>
+              Condições de pagamento e observações
+            </Text>
+            <Text style={styles.obsText}>{observacoes}</Text>
+          </View>
+        )}
 
         {/* ── ASSINATURAS ── */}
         <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Assinaturas</Text>
