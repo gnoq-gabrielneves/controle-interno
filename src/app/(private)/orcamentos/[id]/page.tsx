@@ -79,6 +79,7 @@ type ClienteData = {
 
 type OrcamentoDetalhe = {
   id: string;
+  numero: number | null;
   titulo: string;
   status: OrcamentoStatus;
   margem_lucro: number;
@@ -165,6 +166,7 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
 
     const doc = (
       <OrcamentoPDF
+        numero={orcamento.numero ?? null}
         titulo={orcamento.titulo}
         status={orcamento.status}
         cliente={orcamento.cliente}
