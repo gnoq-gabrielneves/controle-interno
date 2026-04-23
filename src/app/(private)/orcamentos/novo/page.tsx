@@ -1,6 +1,5 @@
 // src/app/(private)/orcamentos/novo/page.tsx
 "use client";
-
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -202,7 +201,7 @@ export default function NovoOrcamentoPage() {
   const labelClass = "text-white/60 text-xs uppercase tracking-wider";
 
   return (
-    <div className="p-8 max-w-4xl flex flex-col gap-6">
+    <div className="p-8 w-full flex flex-col gap-6">
       {/* cabeçalho */}
       <div className="flex items-center gap-4">
         <button
@@ -222,7 +221,7 @@ export default function NovoOrcamentoPage() {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         {/* dados do orçamento */}
-        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-6 flex flex-col gap-4">
+        <div className="rounded-xl border border-white/10 bg-white/2 p-6 flex flex-col gap-4">
           <p className="text-xs text-white/30 uppercase tracking-wider">
             Dados do orçamento
           </p>
@@ -245,11 +244,16 @@ export default function NovoOrcamentoPage() {
               <Select
                 value={clienteId}
                 onValueChange={(v) => v && setClienteId(v)}
+                modal={false}
               >
                 <SelectTrigger className="bg-white/5 w-full border-white/10 text-white">
                   <SelectValue placeholder="Selecione um cliente" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0d0d1a] border-white/10 text-white">
+                <SelectContent
+                  side="bottom"
+                  sideOffset={4}
+                  className="bg-[#0d0d1a] border-white/10 text-white z-50"
+                >
                   {clientes?.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.nome}
