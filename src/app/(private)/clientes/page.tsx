@@ -1,5 +1,5 @@
 "use client";
-import { NewFuncionario } from "@/components/NewFuncionario/NewFuncionario";
+import { NewCliente } from "@/components/NewCliente/NewCliente";
 import {
   Table,
   TableBody,
@@ -8,12 +8,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useListFuncionarios } from "@/hooks/use-funcionarios";
-import { UserIcon } from "lucide-react";
+import { useListClientes } from "@/hooks/use-clientes";
+import { BuildingIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-export default function FuncionariosPage() {
-  const { data, isLoading } = useListFuncionarios();
+export default function ClientesPage() {
+  const { data, isLoading } = useListClientes();
   const router = useRouter();
 
   return (
@@ -21,12 +21,12 @@ export default function FuncionariosPage() {
       {/* cabeçalho */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Funcionários</h1>
+          <h1 className="text-xl font-semibold">Clientes</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {data?.length ?? 0} funcionários cadastrados
+            {data?.length ?? 0} clientes cadastrados
           </p>
         </div>
-        <NewFuncionario />
+        <NewCliente />
       </div>
 
       {/* tabela */}
@@ -38,16 +38,16 @@ export default function FuncionariosPage() {
                 Nome
               </TableHead>
               <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                Cargo
+                CPF / CNPJ
               </TableHead>
               <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                CPF
+                Email
               </TableHead>
               <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                Salário
+                Telefone
               </TableHead>
               <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                Tipo de Contrato
+                Cidade
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -56,7 +56,7 @@ export default function FuncionariosPage() {
             {/* loading */}
             {isLoading && (
               <TableRow className="border-0 hover:bg-transparent">
-                <TableCell colSpan={2} className="py-16 text-center">
+                <TableCell colSpan={5} className="py-16 text-center">
                   <div className="flex justify-center">
                     <div className="w-5 h-5 rounded-full border-2 border-sky-500/30 border-t-sky-400 animate-spin" />
                   </div>
@@ -66,48 +66,39 @@ export default function FuncionariosPage() {
 
             {/* lista */}
             {!isLoading &&
-              data?.map((funcionario) => (
+              data?.map((cliente) => (
                 <TableRow
-                  key={funcionario.id}
-                  onClick={() => router.push(`/funcionarios/${funcionario.id}`)}
+                  key={cliente.id}
+                  onClick={() => router.push(`/clientes/${cliente.id}`)}
                   className="border-white/5 hover:bg-white/3 cursor-pointer transition-colors"
                 >
-                  {/* nome com avatar */}
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div className="w-7 h-7 rounded-full bg-sky-500/20 border border-sky-500/30 flex items-center justify-center text-sky-300 text-xs font-medium">
-                        {(funcionario.name ?? "")
+                        {(cliente.nome ?? "")
                           .split(" ")
                           .slice(0, 2)
                           .map((n: string) => n.charAt(0).toUpperCase())
                           .join("") || "?"}
                       </div>
                       <span className="text-sm text-white/80">
-                        {funcionario.name}
+                        {cliente.nome}
                       </span>
                     </div>
                   </TableCell>
-
-                  {/* cargo */}
                   <TableCell className="text-sm text-white/50">
-                    {funcionario.cargo}
-                  </TableCell>
-                  {/* cpf */}
-                  <TableCell className="text-sm text-white/50">
-                    {funcionario.cpf}
-                  </TableCell>
-                  {/* salario */}
-                  <TableCell
-                    className="text-sm text-white/50"
-                    title={`R$ ${((funcionario.salario ?? 0) / 220).toFixed(2)}/h (base 220h)`}
-                  >
-                    {new Intl.NumberFormat("pt-BR", {
-                      style: "currency",
-                      currency: "BRL",
-                    }).format(funcionario.salario ?? 0)}
+                    {cliente.cpf_cnpj ?? "—"}
                   </TableCell>
                   <TableCell className="text-sm text-white/50">
-                    {funcionario.tipo_contrato.toUpperCase()}
+                    {cliente.email ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-white/50">
+                    {cliente.telefone ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-white/50">
+                    {cliente.cidade
+                      ? `${cliente.cidade}/${cliente.estado}`
+                      : "—"}
                   </TableCell>
                 </TableRow>
               ))}
@@ -115,11 +106,11 @@ export default function FuncionariosPage() {
             {/* vazio */}
             {!isLoading && (!data || data.length === 0) && (
               <TableRow className="border-0 hover:bg-transparent">
-                <TableCell colSpan={2} className="py-16 text-center">
+                <TableCell colSpan={5} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
-                    <UserIcon className="w-8 h-8 text-white/10" />
+                    <BuildingIcon className="w-8 h-8 text-white/10" />
                     <p className="text-sm text-white/30">
-                      Nenhum funcionário cadastrado
+                      Nenhum cliente cadastrado
                     </p>
                   </div>
                 </TableCell>

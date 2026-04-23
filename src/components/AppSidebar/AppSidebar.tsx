@@ -1,5 +1,12 @@
 "use client";
-import { DollarSignIcon, HomeIcon, UserIcon, VerifiedIcon } from "lucide-react";
+import {
+  DollarSignIcon,
+  GemIcon,
+  HomeIcon,
+  TagIcon,
+  UserIcon,
+  VerifiedIcon,
+} from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import {
@@ -24,6 +31,8 @@ const menuItems = {
   pessoas: [
     { label: "Funcionários", url: "/funcionarios", icon: UserIcon },
     { label: "Societários", url: "/societarios", icon: VerifiedIcon },
+    { label: "Clientes", url: "/clientes", icon: GemIcon },
+    { label: "orcamentos", url: "/orcamentos", icon: TagIcon },
   ],
   investimentos: [{ label: "Gastos", url: "/gastos", icon: DollarSignIcon }],
 };
