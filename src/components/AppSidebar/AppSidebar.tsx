@@ -32,9 +32,11 @@ const menuItems = {
     { label: "Funcionários", url: "/funcionarios", icon: UserIcon },
     { label: "Societários", url: "/societarios", icon: VerifiedIcon },
     { label: "Clientes", url: "/clientes", icon: GemIcon },
-    { label: "orcamentos", url: "/orcamentos", icon: TagIcon },
   ],
-  investimentos: [{ label: "Gastos", url: "/gastos", icon: DollarSignIcon }],
+  investimentos: [
+    { label: "Gastos", url: "/gastos", icon: DollarSignIcon },
+    { label: "Orçamentos", url: "/orcamentos", icon: TagIcon },
+  ],
 };
 
 export function AppSidebar() {
