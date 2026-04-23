@@ -31,7 +31,7 @@ const styles = StyleSheet.create({
   page: {
     backgroundColor: brand.bg,
     paddingTop: 40,
-    paddingBottom: 80,
+    paddingBottom: 40,
     paddingHorizontal: 40,
     fontFamily: "Helvetica",
   },
@@ -238,10 +238,6 @@ const styles = StyleSheet.create({
     lineHeight: 1.6,
   },
   totalCard: {
-    position: "absolute",
-    bottom: 40,
-    left: 40,
-    right: 40,
     backgroundColor: brand.skyLight,
     borderWidth: 1,
     borderColor: brand.skyBorder,
@@ -250,6 +246,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 20,
   },
   totalLabel: {
     fontSize: 9,
@@ -272,6 +269,43 @@ const styles = StyleSheet.create({
     color: brand.skyText,
     marginBottom: 2,
   },
+  assinaturaSection: {
+    flexDirection: "row",
+    gap: 40,
+    marginTop: 8,
+  },
+  assinaturaBox: {
+    flex: 1,
+    alignItems: "center",
+  },
+  assinaturaLinha: {
+    width: "100%",
+    height: 48,
+    borderBottomWidth: 1,
+    borderBottomColor: brand.border,
+    marginBottom: 8,
+  },
+  assinaturaLabel: {
+    fontSize: 9,
+    color: brand.text,
+    textAlign: "center",
+    fontFamily: "Helvetica-Bold",
+  },
+  assinaturaSubLabel: {
+    fontSize: 8,
+    color: brand.textFaint,
+    textAlign: "center",
+    marginTop: 2,
+  },
+  assinaturaTitle: {
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+    color: brand.textFaint,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 16,
+    textAlign: "center",
+  },
   footer: {
     position: "absolute",
     bottom: 16,
@@ -279,6 +313,9 @@ const styles = StyleSheet.create({
     right: 40,
     flexDirection: "row",
     justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: brand.borderLight,
+    paddingTop: 8,
   },
   footerText: {
     fontSize: 7,
@@ -404,7 +441,6 @@ export function OrcamentoPDF({
       <Page size="A4" style={styles.page}>
         {/* ── CABEÇALHO DA EMPRESA ── */}
         <View style={styles.header}>
-          {/* esquerda: identidade da empresa */}
           <View style={styles.headerLeft}>
             <Text
               style={{
@@ -430,24 +466,24 @@ export function OrcamentoPDF({
             <Text
               style={{ fontSize: 9, color: brand.textMuted, marginBottom: 2 }}
             >
-              CNPJ: 00.000.000/0001-00
+              CNPJ: 57.738.857/0001-20
             </Text>
             <Text
               style={{ fontSize: 9, color: brand.textMuted, marginBottom: 2 }}
             >
-              Rua Exemplo, 123 — Bairro — Cidade/UF — CEP 00000-000
+              Rua das Industrias, 500 — Novo Eldorado — Contagem/MG — CEP
+              32341-490
             </Text>
             <Text
               style={{ fontSize: 9, color: brand.textMuted, marginBottom: 2 }}
             >
-              (00) 00000-0000 · contato@gnoq.com.br
+              (31) 99452-5631 · gabriel.neves@gnoq.com.br
             </Text>
             <Text style={{ fontSize: 9, color: brand.sky }}>
               www.gnoq.com.br
             </Text>
           </View>
 
-          {/* direita: identificação do orçamento */}
           <View
             style={{
               alignItems: "flex-end",
@@ -523,6 +559,16 @@ export function OrcamentoPDF({
               Válido até {validade.toLocaleDateString("pt-BR")}
             </Text>
           </View>
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: st.bg, borderColor: st.border },
+            ]}
+          >
+            <Text style={[styles.statusText, { color: st.color }]}>
+              {st.label}
+            </Text>
+          </View>
         </View>
 
         {/* ── DADOS DO CLIENTE ── */}
@@ -547,7 +593,6 @@ export function OrcamentoPDF({
 
         {/* ── ITENS ── */}
         <Text style={styles.sectionLabel}>Itens do orçamento</Text>
-
         {orcamento_itens.map((item, index) => {
           const calc = calcularItem(item);
           return (
@@ -605,16 +650,18 @@ export function OrcamentoPDF({
           );
         })}
 
-        {/* ── OBSERVAÇÕES ── */}
+        {/* ── OBSERVAÇÕES / CONDIÇÕES DE PAGAMENTO ── */}
         {observacoes && (
           <View style={styles.obsCard}>
-            <Text style={styles.cardLabel}>Observações</Text>
+            <Text style={styles.cardLabel}>
+              Condições de pagamento e observações
+            </Text>
             <Text style={styles.obsText}>{observacoes}</Text>
           </View>
         )}
 
-        {/* ── TOTAL (fixo no rodapé) ── */}
-        <View style={styles.totalCard} fixed>
+        {/* ── TOTAL ── */}
+        <View style={styles.totalCard} wrap={false}>
           <View>
             <Text style={styles.totalLabel}>Total do orçamento</Text>
             <Text style={styles.totalValor}>{formatBRL(totalOrcamento)}</Text>
@@ -626,6 +673,34 @@ export function OrcamentoPDF({
             <Text style={styles.totalRightText}>
               Válido até {validade.toLocaleDateString("pt-BR")}
             </Text>
+          </View>
+        </View>
+
+        {/* ── ASSINATURAS ── */}
+        <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Assinaturas</Text>
+        <View wrap={false} style={styles.assinaturaSection}>
+          <View style={styles.assinaturaBox}>
+            <View style={styles.assinaturaLinha} />
+            <Text style={styles.assinaturaLabel}>
+              {cliente?.nome ?? "Contratante"}
+            </Text>
+            {cliente?.cpf_cnpj && (
+              <Text style={styles.assinaturaSubLabel}>{cliente.cpf_cnpj}</Text>
+            )}
+            <Text style={styles.assinaturaSubLabel}>Contratante</Text>
+          </View>
+
+          <View style={styles.assinaturaBox}>
+            {/* substituir pela imagem quando disponível:
+            <Image src="/assinatura.png" style={{ width: 120, height: 48, objectFit: "contain" }} /> */}
+            <View style={styles.assinaturaLinha} />
+            <Text style={styles.assinaturaLabel}>
+              GNOQ — Global Node of Quantum
+            </Text>
+            <Text style={styles.assinaturaSubLabel}>
+              CNPJ: 57.738.857/0001-20
+            </Text>
+            <Text style={styles.assinaturaSubLabel}>Contratada</Text>
           </View>
         </View>
 
