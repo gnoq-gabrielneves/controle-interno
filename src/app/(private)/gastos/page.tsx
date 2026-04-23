@@ -180,7 +180,7 @@ export default function GastosPage() {
                   <div className="flex flex-col items-center gap-2">
                     <DollarSignIcon className="w-8 h-8 text-white/10" />
                     <p className="text-sm text-white/30">
-                      Nenhum gasto cadastrado
+                      Nenhum gasto foi cadastrado
                     </p>
                   </div>
                 </TableCell>
