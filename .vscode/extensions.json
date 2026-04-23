@@ -1,0 +1,10 @@
+{
+    "recommendations": [
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "editorconfig.editorconfig",
+        "naumovs.color-highlight",
+        "aaron-bound.better-comments",
+        "usernamehw.errorlens"
+    ]
+}
