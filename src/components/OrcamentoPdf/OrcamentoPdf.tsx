@@ -1,4 +1,3 @@
-// src/components/OrcamentoPDF/OrcamentoPDF.tsx
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
 const brand = {
@@ -32,20 +31,18 @@ const styles = StyleSheet.create({
   page: {
     backgroundColor: brand.bg,
     paddingTop: 40,
-    paddingBottom: 80, // espaço pro total fixo no rodapé
+    paddingBottom: 80,
     paddingHorizontal: 40,
     fontFamily: "Helvetica",
   },
-
-  // cabeçalho
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
     marginBottom: 28,
     paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: brand.border,
+    borderBottomWidth: 2,
+    borderBottomColor: brand.sky,
   },
   headerLeft: { flex: 1 },
   titulo: {
@@ -68,8 +65,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
   },
-
-  // cards de info
   infoRow: {
     flexDirection: "row",
     gap: 12,
@@ -118,8 +113,6 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     color: brand.text,
   },
-
-  // seção de itens
   sectionLabel: {
     fontSize: 8,
     fontFamily: "Helvetica-Bold",
@@ -165,8 +158,6 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     color: brand.sky,
   },
-
-  // funcionários do item
   funcRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -209,8 +200,6 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     color: brand.textMuted,
   },
-
-  // breakdown do item
   breakdown: {
     flexDirection: "row",
     gap: 16,
@@ -235,8 +224,6 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     color: brand.sky,
   },
-
-  // observações
   obsCard: {
     backgroundColor: brand.bgCard,
     borderWidth: 1,
@@ -250,8 +237,6 @@ const styles = StyleSheet.create({
     color: brand.textMuted,
     lineHeight: 1.6,
   },
-
-  // total — fixo no rodapé
   totalCard: {
     position: "absolute",
     bottom: 40,
@@ -287,8 +272,6 @@ const styles = StyleSheet.create({
     color: brand.skyText,
     marginBottom: 2,
   },
-
-  // rodapé de página
   footer: {
     position: "absolute",
     bottom: 16,
@@ -332,6 +315,7 @@ type ClienteData = {
 };
 
 type OrcamentoPDFProps = {
+  numero: number | null;
   titulo: string;
   status: string;
   cliente: ClienteData | null;
@@ -383,6 +367,7 @@ const statusMap: Record<
 };
 
 export function OrcamentoPDF({
+  numero,
   titulo,
   status,
   cliente,
@@ -417,37 +402,139 @@ export function OrcamentoPDF({
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* cabeçalho */}
+        {/* ── CABEÇALHO DA EMPRESA ── */}
         <View style={styles.header}>
+          {/* esquerda: identidade da empresa */}
           <View style={styles.headerLeft}>
-            <Text style={styles.titulo}>{titulo}</Text>
-            <Text style={styles.subtitulo}>
-              {cliente?.nome ?? "—"} · Válido até{" "}
-              {validade.toLocaleDateString("pt-BR")}
+            <Text
+              style={{
+                fontSize: 24,
+                fontFamily: "Helvetica-Bold",
+                color: brand.sky,
+                letterSpacing: 3,
+                marginBottom: 2,
+              }}
+            >
+              GNOQ
+            </Text>
+            <Text
+              style={{
+                fontSize: 8,
+                color: brand.textFaint,
+                letterSpacing: 1.5,
+                marginBottom: 10,
+              }}
+            >
+              GLOBAL NODE OF QUANTUM
+            </Text>
+            <Text
+              style={{ fontSize: 9, color: brand.textMuted, marginBottom: 2 }}
+            >
+              CNPJ: 00.000.000/0001-00
+            </Text>
+            <Text
+              style={{ fontSize: 9, color: brand.textMuted, marginBottom: 2 }}
+            >
+              Rua Exemplo, 123 — Bairro — Cidade/UF — CEP 00000-000
+            </Text>
+            <Text
+              style={{ fontSize: 9, color: brand.textMuted, marginBottom: 2 }}
+            >
+              (00) 00000-0000 · contato@gnoq.com.br
+            </Text>
+            <Text style={{ fontSize: 9, color: brand.sky }}>
+              www.gnoq.com.br
             </Text>
           </View>
+
+          {/* direita: identificação do orçamento */}
           <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: st.bg, borderColor: st.border },
-            ]}
+            style={{
+              alignItems: "flex-end",
+              backgroundColor: brand.skyLight,
+              borderWidth: 1,
+              borderColor: brand.skyBorder,
+              borderRadius: 8,
+              padding: 14,
+              minWidth: 150,
+            }}
           >
-            <Text style={[styles.statusText, { color: st.color }]}>
-              {st.label}
+            <Text
+              style={{
+                fontSize: 8,
+                fontFamily: "Helvetica-Bold",
+                color: brand.textFaint,
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                marginBottom: 4,
+              }}
+            >
+              Orçamento
+            </Text>
+            <Text
+              style={{
+                fontSize: 22,
+                fontFamily: "Helvetica-Bold",
+                color: brand.sky,
+                marginBottom: 10,
+              }}
+            >
+              #{String(numero ?? 0).padStart(4, "0")}
+            </Text>
+            <View
+              style={{
+                borderTopWidth: 1,
+                borderTopColor: brand.skyBorder,
+                paddingTop: 8,
+                width: "100%",
+                alignItems: "flex-end",
+              }}
+            >
+              <Text
+                style={{ fontSize: 8, color: brand.skyText, marginBottom: 3 }}
+              >
+                Data de emissão
+              </Text>
+              <Text
+                style={{
+                  fontSize: 10,
+                  fontFamily: "Helvetica-Bold",
+                  color: brand.skyText,
+                }}
+              >
+                {new Date().toLocaleDateString("pt-BR")}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ── TÍTULO E STATUS ── */}
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 20,
+          }}
+        >
+          <View>
+            <Text style={styles.titulo}>{titulo}</Text>
+            <Text style={styles.subtitulo}>
+              Válido até {validade.toLocaleDateString("pt-BR")}
             </Text>
           </View>
         </View>
 
-        {/* cliente + detalhes */}
+        {/* ── DADOS DO CLIENTE ── */}
         <View style={styles.infoRow}>
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Cliente</Text>
+            <Text style={styles.cardLabel}>Dados do cliente</Text>
             <Text style={styles.cardValue}>{cliente?.nome ?? "—"}</Text>
-            {cliente?.email && (
-              <Text style={styles.cardValueMuted}>{cliente.email}</Text>
-            )}
             {cliente?.cpf_cnpj && (
               <Text style={styles.cardValueMuted}>{cliente.cpf_cnpj}</Text>
+            )}
+            {cliente?.email && (
+              <Text style={styles.cardValueMuted}>{cliente.email}</Text>
             )}
             {cliente?.logradouro && (
               <Text style={styles.cardValueMuted}>
@@ -456,42 +543,9 @@ export function OrcamentoPDF({
               </Text>
             )}
           </View>
-
-          <View style={styles.card}>
-            <Text style={styles.cardLabel}>Detalhes financeiros</Text>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Margem de lucro</Text>
-              <Text style={styles.detailValue}>
-                {(margem_lucro * 100).toFixed(1)}%
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Alíquota imposto</Text>
-              <Text style={styles.detailValue}>
-                {(aliquota_imposto * 100).toFixed(1)}%
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Overhead/hora</Text>
-              <Text style={styles.detailValue}>
-                {formatBRL(overheadPorHora)}
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.detailRow,
-                { borderBottomWidth: 0, marginBottom: 0 },
-              ]}
-            >
-              <Text style={styles.detailLabel}>Validade</Text>
-              <Text style={styles.detailValue}>
-                {validade.toLocaleDateString("pt-BR")}
-              </Text>
-            </View>
-          </View>
         </View>
 
-        {/* itens */}
+        {/* ── ITENS ── */}
         <Text style={styles.sectionLabel}>Itens do orçamento</Text>
 
         {orcamento_itens.map((item, index) => {
@@ -514,7 +568,6 @@ export function OrcamentoPDF({
                   : f.funcionario_data;
                 const salarioPorHora = (func?.salario ?? 0) / 220;
                 const custoFunc = f.horas * (salarioPorHora + overheadPorHora);
-
                 return (
                   <View key={f.id} style={styles.funcRow}>
                     <View style={styles.funcLeft}>
@@ -542,12 +595,6 @@ export function OrcamentoPDF({
                   </Text>
                 </View>
                 <View style={styles.breakdownItem}>
-                  <Text style={styles.breakdownLabel}>Com margem: </Text>
-                  <Text style={styles.breakdownValue}>
-                    {formatBRL(calc.comMargem)}
-                  </Text>
-                </View>
-                <View style={styles.breakdownItem}>
                   <Text style={styles.breakdownLabel}>Com imposto: </Text>
                   <Text style={styles.breakdownValueHighlight}>
                     {formatBRL(calc.comImposto)}
@@ -558,7 +605,7 @@ export function OrcamentoPDF({
           );
         })}
 
-        {/* observações */}
+        {/* ── OBSERVAÇÕES ── */}
         {observacoes && (
           <View style={styles.obsCard}>
             <Text style={styles.cardLabel}>Observações</Text>
@@ -566,7 +613,7 @@ export function OrcamentoPDF({
           </View>
         )}
 
-        {/* total — sempre no rodapé via position absolute */}
+        {/* ── TOTAL (fixo no rodapé) ── */}
         <View style={styles.totalCard} fixed>
           <View>
             <Text style={styles.totalLabel}>Total do orçamento</Text>
@@ -582,7 +629,7 @@ export function OrcamentoPDF({
           </View>
         </View>
 
-        {/* rodapé de página */}
+        {/* ── RODAPÉ DE PÁGINA ── */}
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>GNOQ — Global Node of Quantum</Text>
           <Text
