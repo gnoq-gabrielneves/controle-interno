@@ -1,5 +1,5 @@
 "use client";
-
+import { NewFuncionario } from "@/components/NewFuncionario/NewFuncionario";
 import {
   Table,
   TableBody,
@@ -10,9 +10,11 @@ import {
 } from "@/components/ui/table";
 import { useListFuncionarios } from "@/hooks/use-funcionarios";
 import { UserIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function FuncionariosPage() {
   const { data, isLoading } = useListFuncionarios();
+  const router = useRouter();
 
   return (
     <div className="p-8 flex flex-col gap-6">
@@ -24,10 +26,7 @@ export default function FuncionariosPage() {
             {data?.length ?? 0} funcionários cadastrados
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-sky-500/30 bg-sky-500/10 text-sky-300 text-sm hover:bg-sky-500/20 transition-all">
-          <UserIcon className="w-4 h-4" />
-          Novo funcionário
-        </button>
+        <NewFuncionario />
       </div>
 
       {/* tabela */}
@@ -40,6 +39,15 @@ export default function FuncionariosPage() {
               </TableHead>
               <TableHead className="text-xs uppercase tracking-wider text-white/30">
                 Cargo
+              </TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-white/30">
+                CPF
+              </TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-white/30">
+                Salário
+              </TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-white/30">
+                Tipo de Contrato
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -61,6 +69,7 @@ export default function FuncionariosPage() {
               data?.map((funcionario) => (
                 <TableRow
                   key={funcionario.id}
+                  onClick={() => router.push(`/funcionarios/${funcionario.id}`)}
                   className="border-white/5 hover:bg-white/3 cursor-pointer transition-colors"
                 >
                   {/* nome com avatar */}
@@ -82,6 +91,20 @@ export default function FuncionariosPage() {
                   {/* cargo */}
                   <TableCell className="text-sm text-white/50">
                     {funcionario.cargo}
+                  </TableCell>
+                  {/* cpf */}
+                  <TableCell className="text-sm text-white/50">
+                    {funcionario.cpf}
+                  </TableCell>
+                  {/* salario */}
+                  <TableCell className="text-sm text-white/50">
+                    {new Intl.NumberFormat("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
+                    }).format(funcionario.salario ?? 0)}
+                  </TableCell>
+                  <TableCell className="text-sm text-white/50">
+                    {funcionario.tipo_contrato.toUpperCase()}
                   </TableCell>
                 </TableRow>
               ))}
