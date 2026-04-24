@@ -597,7 +597,7 @@ export function OrcamentoPDF({
                 </Text>
               </View>
 
-              {item.orcamento_item_funcionarios.map((f) => {
+              {/* {item.orcamento_item_funcionarios.map((f) => {
                 const func = Array.isArray(f.funcionario_data)
                   ? f.funcionario_data[0]
                   : f.funcionario_data;
@@ -620,7 +620,7 @@ export function OrcamentoPDF({
                     <Text style={styles.funcValor}>{formatBRL(custoFunc)}</Text>
                   </View>
                 );
-              })}
+              })} */}
 
               <View style={styles.breakdown}>
                 <View style={styles.breakdownItem}>
