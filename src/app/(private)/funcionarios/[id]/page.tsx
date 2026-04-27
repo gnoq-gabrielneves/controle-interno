@@ -1,5 +1,4 @@
 "use client";
-
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -13,9 +12,10 @@ import {
   useGetFuncionario,
   useUpdateFuncionario,
 } from "@/hooks/use-funcionarios";
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeftIcon, MailIcon } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
+import { IMaskInput } from "react-imask";
 
 type Form = {
   name: string;
@@ -23,6 +23,8 @@ type Form = {
   cpf: string;
   salario: string;
   tipo_contrato: "clt" | "pj" | "estagio" | "autonomo";
+  telefone: string;
+  email: string;
   cep: string;
   logradouro: string;
   numero: string;
@@ -39,6 +41,8 @@ type Funcionario = {
   cpf: string;
   salario: number;
   tipo_contrato: "clt" | "pj" | "estagio" | "autonomo";
+  telefone: string | null;
+  email: string | null;
   cep: string;
   logradouro: string;
   numero: string;
@@ -82,6 +86,8 @@ function FuncionarioForm({ funcionario }: { funcionario: Funcionario }) {
     cpf: funcionario.cpf ?? "",
     salario: funcionario.salario?.toString() ?? "",
     tipo_contrato: funcionario.tipo_contrato ?? "clt",
+    telefone: funcionario.telefone ?? "",
+    email: funcionario.email ?? "",
     cep: funcionario.cep ?? "",
     logradouro: funcionario.logradouro ?? "",
     numero: funcionario.numero ?? "",
@@ -127,6 +133,8 @@ function FuncionarioForm({ funcionario }: { funcionario: Funcionario }) {
       cpf: form.cpf,
       salario: parseFloat(form.salario),
       tipo_contrato: form.tipo_contrato,
+      telefone: form.telefone || undefined,
+      email: form.email || undefined,
       cep: form.cep,
       logradouro: form.logradouro,
       numero: form.numero,
@@ -144,18 +152,32 @@ function FuncionarioForm({ funcionario }: { funcionario: Funcionario }) {
   return (
     <div className="p-8 w-full flex flex-col gap-6">
       {/* cabeçalho */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => router.back()}
-          className="p-2 rounded-lg border border-white/10 hover:bg-white/5 transition-all text-white/50 hover:text-white/80"
-        >
-          <ArrowLeftIcon className="w-4 h-4" />
-        </button>
-        <div>
-          <h1 className="text-xl font-semibold">{funcionario.name}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {funcionario.cargo}
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => router.back()}
+            className="p-2 rounded-lg border border-white/10 hover:bg-white/5 transition-all text-white/50 hover:text-white/80"
+          >
+            <ArrowLeftIcon className="w-4 h-4" />
+          </button>
+          <div>
+            <h1 className="text-xl font-semibold">{funcionario.name}</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {funcionario.cargo}
+            </p>
+          </div>
+        </div>
+        {/* assinatura */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() =>
+              router.push(`/funcionarios/${funcionario.id}/assinatura`)
+            }
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 text-white/50 text-sm hover:bg-white/5 hover:text-white/80 transition-all"
+          >
+            <MailIcon className="w-4 h-4" />
+            Gerar assinatura
+          </button>
         </div>
       </div>
 
@@ -181,6 +203,25 @@ function FuncionarioForm({ funcionario }: { funcionario: Funcionario }) {
                 value={form.cpf}
                 onChange={(e) => handleChange("cpf", e.target.value)}
                 className={inputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className={labelClass}>Email</Label>
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(e) => handleChange("email", e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className={labelClass}>Telefone</Label>
+              <IMaskInput
+                mask="(00) 00000-0000"
+                value={form.telefone}
+                onAccept={(value: string) => handleChange("telefone", value)}
+                placeholder="(00) 00000-0000"
+                className={`flex h-9 w-full rounded-md border px-3 py-1 text-sm shadow-sm transition-colors ${inputClass}`}
               />
             </div>
           </div>

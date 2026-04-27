@@ -4,6 +4,8 @@ export type CreateFuncionarioInput = {
   cpf: string;
   salario: number;
   tipo_contrato: "clt" | "pj" | "estagio" | "autonomo";
+  telefone?: string;
+  email?: string;
   cep?: string;
   logradouro?: string;
   numero?: string;
