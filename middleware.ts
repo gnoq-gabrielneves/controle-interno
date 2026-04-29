@@ -13,14 +13,14 @@ export async function middleware(request: NextRequest) {
   );
 
   const isPublicRoute =
-    pathname.startsWith("/login") ||
+    pathname.startsWith("/") ||
     pathname.startsWith("/register") ||
     pathname === "/";
 
   // Não logado tentando acessar rota privada → login
   if (!user && !isPublicRoute) {
     console.log("❌ sem user, redirecionando pra /login");
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   // Já logado tentando acessar login → home
@@ -31,7 +31,7 @@ export async function middleware(request: NextRequest) {
 
   // redireciona "/" sem user pro login
   if (!user && pathname === "/") {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   // IMPORTANTE: sempre retornar o supabaseResponse, não NextResponse.next()

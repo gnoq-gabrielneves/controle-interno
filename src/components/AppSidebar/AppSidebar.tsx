@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  BoxIcon,
   DollarSignIcon,
   GemIcon,
   HomeIcon,
+  SettingsIcon,
   TagIcon,
   UserIcon,
   VerifiedIcon,
@@ -33,6 +35,14 @@ const menuItems = {
   investimentos: [
     { label: "Gastos", url: "/gastos", icon: DollarSignIcon },
     { label: "Orçamentos", url: "/orcamentos", icon: TagIcon },
+    { label: "Distribuição", url: "/distribuicao", icon: BoxIcon },
+  ],
+  auditoria: [
+    {
+      label: "Configurações Globais",
+      url: "/configuracoes",
+      icon: SettingsIcon,
+    },
   ],
 };
 
@@ -93,6 +103,27 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.investimentos.map((item) => (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton isActive={isActive(item.url)}>
+                    <Link
+                      href={item.url}
+                      className="flex items-center gap-2 w-full"
+                    >
+                      <item.icon className="w-4 h-4 shrink-0" />
+                      <span>{item.label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Auditoria</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {menuItems.auditoria.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton isActive={isActive(item.url)}>
                     <Link

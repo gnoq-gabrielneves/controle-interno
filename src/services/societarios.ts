@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase/supabase";
 
+// src/services/societarios.ts
 export async function ListSocietarios() {
   const { data, error } = await supabase.from("sociedade").select(`
       funcionario,
@@ -7,7 +8,8 @@ export async function ListSocietarios() {
       funcionario_data:funcionario (
         id,
         name,
-        cargo
+        cargo,
+        salario
       )
     `);
 

@@ -14,7 +14,12 @@ import {
   useUpdateOrcamentoStatus,
 } from "@/hooks/use-orcamentos";
 import { OrcamentoStatus } from "@/types/orcamentos-types";
-import { ArrowLeftIcon, DownloadIcon, PencilIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  CalculatorIcon,
+  DownloadIcon,
+  PencilIcon,
+} from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useRef } from "react";
 
@@ -237,6 +242,16 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
           </button>
 
           <button
+            onClick={() =>
+              router.push(`/orcamentos/${orcamento.id}/distribuicao`)
+            }
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 text-white/50 text-sm hover:bg-white/5 hover:text-white/80 transition-all"
+          >
+            <CalculatorIcon className="w-4 h-4" />
+            Distribuição
+          </button>
+
+          <button
             onClick={handleExportPDF}
             className="flex items-center gap-2 px-4 py-2 rounded-lg border border-sky-500/30 bg-sky-500/10 text-sky-300 text-sm hover:bg-sky-500/20 transition-all"
           >
@@ -249,7 +264,7 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
       {/* conteúdo que vai pro PDF */}
       <div ref={pdfRef} className="flex flex-col gap-6 p-2">
         {/* info do cliente */}
-        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-6 grid grid-cols-2 gap-4">
+        <div className="rounded-xl border border-white/10 bg-white/2 p-6 grid grid-cols-2 gap-4">
           <div>
             <p className="text-xs text-white/30 uppercase tracking-wider mb-3">
               Cliente
