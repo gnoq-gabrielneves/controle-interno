@@ -45,7 +45,7 @@ const menuItems = {
       icon: SettingsIcon,
     },
   ],
-  sistema: [{ label: "DevBlogs", url: "", icon: CpuIcon }],
+  sistema: [{ label: "DevBlogs", url: "/devblogs", icon: CpuIcon }],
 };
 
 export function AppSidebar() {
