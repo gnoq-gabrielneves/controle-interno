@@ -2,6 +2,7 @@
 
 import {
   BoxIcon,
+  CpuIcon,
   DollarSignIcon,
   GemIcon,
   HomeIcon,
@@ -44,6 +45,7 @@ const menuItems = {
       icon: SettingsIcon,
     },
   ],
+  sistema: [{ label: "DevBlogs", url: "", icon: CpuIcon }],
 };
 
 export function AppSidebar() {
@@ -103,6 +105,27 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.investimentos.map((item) => (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuButton isActive={isActive(item.url)}>
+                    <Link
+                      href={item.url}
+                      className="flex items-center gap-2 w-full"
+                    >
+                      <item.icon className="w-4 h-4 shrink-0" />
+                      <span>{item.label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Sistema</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {menuItems.sistema.map((item) => (
                 <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton isActive={isActive(item.url)}>
                     <Link
