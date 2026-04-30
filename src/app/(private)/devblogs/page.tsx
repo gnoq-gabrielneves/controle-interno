@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatDate } from "@/helpers/formatDate";
 import {
   useCreatePost,
   useDeletePost,
@@ -78,12 +79,20 @@ export default function DevblogPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    createPost(form, {
-      onSuccess: () => {
-        setOpen(false);
-        setForm(emptyForm);
+
+    // converte YYYY-MM-DD pra DD/MM/YYYY antes de salvar
+    const [year, month, day] = form.date.split("-");
+    const dateFormatted = `${day}/${month}/${year}`;
+
+    createPost(
+      { ...form, date: dateFormatted },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          setForm(emptyForm);
+        },
       },
-    });
+    );
   }
 
   const inputClass =
@@ -146,7 +155,9 @@ export default function DevblogPage() {
                 <div className="flex items-center gap-3 shrink-0">
                   <div className="text-right">
                     <p className="text-xs text-white/30">v{post.version}</p>
-                    <p className="text-xs text-white/20">{post.date}</p>
+                    <p className="text-xs text-white/20">
+                      {formatDate(post.date)}
+                    </p>
                   </div>
                   <button
                     onClick={() => deletePost(post.id)}
