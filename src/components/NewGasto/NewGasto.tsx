@@ -1,3 +1,6 @@
+// src/components/NewGasto/NewGasto.tsx
+"use client";
+
 import { useCreateGasto } from "@/hooks/use-gastos";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
@@ -14,13 +17,12 @@ import {
 
 export function NewGasto() {
   const { mutate: createGasto, isPending } = useCreateGasto();
-
   const [open, setOpen] = useState(false);
-
   const [form, setForm] = useState({
     nome: "",
     descricao: "",
-    valor: "",
+    valor_unitario: "",
+    quantidade: "1",
     recorrencia: "mensal" as "mensal" | "anual",
     categoria: "",
   });
@@ -29,13 +31,19 @@ export function NewGasto() {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
+  // calcula o valor total automaticamente
+  const valorTotal =
+    parseFloat(form.valor_unitario || "0") * parseInt(form.quantidade || "1");
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     createGasto(
       {
         nome: form.nome,
         descricao: form.descricao || undefined,
-        valor: parseFloat(form.valor),
+        valor: valorTotal,
+        valor_unitario: parseFloat(form.valor_unitario),
+        quantidade: parseInt(form.quantidade),
         recorrencia: form.recorrencia,
         categoria: form.categoria || undefined,
       },
@@ -45,7 +53,8 @@ export function NewGasto() {
           setForm({
             nome: "",
             descricao: "",
-            valor: "",
+            valor_unitario: "",
+            quantidade: "1",
             recorrencia: "mensal",
             categoria: "",
           });
@@ -54,9 +63,12 @@ export function NewGasto() {
     );
   }
 
+  const inputClass =
+    "bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:border-sky-500/50";
+  const labelClass = "text-white/60 text-xs uppercase tracking-wider";
+
   return (
     <>
-      {/* botão que abre o dialog */}
       <button
         onClick={() => setOpen(true)}
         className="flex items-center gap-2 px-4 py-2 rounded-lg border border-sky-500/30 bg-sky-500/10 text-sky-300 text-sm hover:bg-sky-500/20 transition-all"
@@ -65,7 +77,6 @@ export function NewGasto() {
         Novo gasto
       </button>
 
-      {/* dialog controlado pelo estado open */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="bg-[#0d0d1a] border border-white/10 text-white">
           <DialogHeader>
@@ -74,50 +85,80 @@ export function NewGasto() {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-2">
             <div className="flex flex-col gap-1.5">
-              <Label className="text-white/60 text-xs uppercase tracking-wider">
-                Nome
-              </Label>
+              <Label className={labelClass}>Nome</Label>
               <Input
-                placeholder="Ex: Servidor AWS"
+                placeholder="Ex: Email corporativo"
                 value={form.nome}
                 onChange={(e) => handleChange("nome", e.target.value)}
                 required
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:border-sky-500/50"
+                className={inputClass}
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label className="text-white/60 text-xs uppercase tracking-wider">
-                Descrição
-              </Label>
+              <Label className={labelClass}>Descrição</Label>
               <Input
                 placeholder="Opcional"
                 value={form.descricao}
                 onChange={(e) => handleChange("descricao", e.target.value)}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:border-sky-500/50"
+                className={inputClass}
               />
             </div>
 
+            {/* valor unitário + quantidade */}
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
-                <Label className="text-white/60 text-xs uppercase tracking-wider">
-                  Valor
-                </Label>
+                <Label className={labelClass}>Valor unitário</Label>
                 <Input
                   type="number"
                   step="0.01"
                   placeholder="0,00"
-                  value={form.valor}
-                  onChange={(e) => handleChange("valor", e.target.value)}
+                  value={form.valor_unitario}
+                  onChange={(e) =>
+                    handleChange("valor_unitario", e.target.value)
+                  }
                   required
-                  className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:border-sky-500/50"
+                  className={inputClass}
                 />
               </div>
-
               <div className="flex flex-col gap-1.5">
-                <Label className="text-white/60 text-xs uppercase tracking-wider">
-                  Recorrência
-                </Label>
+                <Label className={labelClass}>Quantidade</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="1"
+                  value={form.quantidade}
+                  onChange={(e) => handleChange("quantidade", e.target.value)}
+                  required
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            {/* preview do total calculado */}
+            {parseFloat(form.valor_unitario) > 0 && (
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-sky-500/5 border border-sky-500/20">
+                <span className="text-xs text-white/40">
+                  {form.quantidade}x{" "}
+                  {new Intl.NumberFormat("pt-BR", {
+                    style: "currency",
+                    currency: "BRL",
+                  }).format(parseFloat(form.valor_unitario || "0"))}
+                </span>
+                <span className="text-sm font-medium text-sky-300">
+                  ={" "}
+                  {new Intl.NumberFormat("pt-BR", {
+                    style: "currency",
+                    currency: "BRL",
+                  }).format(valorTotal)}
+                </span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label className={labelClass}>Recorrência</Label>
                 <Select
                   value={form.recorrencia}
                   onValueChange={(v) => v && handleChange("recorrencia", v)}
@@ -131,18 +172,15 @@ export function NewGasto() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-white/60 text-xs uppercase tracking-wider">
-                Categoria
-              </Label>
-              <Input
-                placeholder="Ex: Infraestrutura"
-                value={form.categoria}
-                onChange={(e) => handleChange("categoria", e.target.value)}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:border-sky-500/50"
-              />
+              <div className="flex flex-col gap-1.5">
+                <Label className={labelClass}>Categoria</Label>
+                <Input
+                  placeholder="Ex: Infraestrutura"
+                  value={form.categoria}
+                  onChange={(e) => handleChange("categoria", e.target.value)}
+                  className={inputClass}
+                />
+              </div>
             </div>
 
             <button

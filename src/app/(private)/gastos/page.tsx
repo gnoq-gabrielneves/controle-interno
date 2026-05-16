@@ -1,6 +1,6 @@
-// src/app/(private)/gastos/page.tsx
 "use client";
 
+import { EditGastoDialog } from "@/components/EditGastoDialog/EditGastoDialog";
 import { NewGasto } from "@/components/NewGasto/NewGasto";
 import {
   Table,
@@ -10,10 +10,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useCountSocietarios, useListGastos } from "@/hooks/use-gastos";
-import { DollarSignIcon } from "lucide-react";
+import {
+  useCountSocietarios,
+  useDeleteGasto,
+  useListGastos,
+} from "@/hooks/use-gastos";
+import { Gasto } from "@/types/gastos-types";
+import { DollarSignIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { useState } from "react";
 
-// formata valor em BRL
 function formatBRL(value: number) {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -24,17 +29,21 @@ function formatBRL(value: number) {
 export default function GastosPage() {
   const { data: gastos, isLoading } = useListGastos();
   const { data: totalSocios = 0 } = useCountSocietarios();
+  const { mutate: deleteGasto } = useDeleteGasto();
 
-  // totais do rodapé
+  const [gastoEditando, setGastoEditando] = useState<Gasto | null>(null);
+
   const totalMensal =
-    gastos?.reduce((acc, g) => {
-      return acc + (g.recorrencia === "mensal" ? g.valor : g.valor / 12);
-    }, 0) ?? 0;
+    gastos?.reduce(
+      (acc, g) => acc + (g.recorrencia === "mensal" ? g.valor : g.valor / 12),
+      0,
+    ) ?? 0;
 
   const totalAnual =
-    gastos?.reduce((acc, g) => {
-      return acc + (g.recorrencia === "anual" ? g.valor : g.valor * 12);
-    }, 0) ?? 0;
+    gastos?.reduce(
+      (acc, g) => acc + (g.recorrencia === "anual" ? g.valor : g.valor * 12),
+      0,
+    ) ?? 0;
 
   return (
     <div className="p-8 flex flex-col gap-6">
@@ -46,7 +55,6 @@ export default function GastosPage() {
             {gastos?.length ?? 0} gastos recorrentes cadastrados
           </p>
         </div>
-
         <NewGasto />
       </div>
 
@@ -62,7 +70,7 @@ export default function GastosPage() {
         ].map((card) => (
           <div
             key={card.label}
-            className="rounded-xl border border-white/10 bg-white/2 p-4 flex flex-col gap-1"
+            className="rounded-xl border border-white/10 bg-white/[0.02] p-4 flex flex-col gap-1"
           >
             <span className="text-xs text-white/30 uppercase tracking-wider">
               {card.label}
@@ -78,7 +86,7 @@ export default function GastosPage() {
       <div className="rounded-xl border border-white/10 overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="border-white/10 hover:bg-transparent bg-white/2">
+            <TableRow className="border-white/10 hover:bg-transparent bg-white/[0.02]">
               <TableHead className="text-xs uppercase tracking-wider text-white/30">
                 Nome
               </TableHead>
@@ -100,14 +108,16 @@ export default function GastosPage() {
               <TableHead className="text-xs uppercase tracking-wider text-white/30 text-right">
                 Por sócio/mês
               </TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-white/30 text-right">
+                Ações
+              </TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
-            {/* loading */}
             {isLoading && (
               <TableRow className="border-0 hover:bg-transparent">
-                <TableCell colSpan={7} className="py-16 text-center">
+                <TableCell colSpan={8} className="py-16 text-center">
                   <div className="flex justify-center">
                     <div className="w-5 h-5 rounded-full border-2 border-sky-500/30 border-t-sky-400 animate-spin" />
                   </div>
@@ -115,7 +125,6 @@ export default function GastosPage() {
               </TableRow>
             )}
 
-            {/* lista */}
             {!isLoading &&
               gastos?.map((gasto) => {
                 const mensal =
@@ -131,7 +140,7 @@ export default function GastosPage() {
                 return (
                   <TableRow
                     key={gasto.id}
-                    className="border-white/5 hover:bg-white/3 cursor-pointer transition-colors"
+                    className="border-white/5 hover:bg-white/[0.03] transition-colors"
                   >
                     <TableCell>
                       <div>
@@ -169,14 +178,29 @@ export default function GastosPage() {
                     <TableCell className="text-sm text-sky-300 text-right">
                       {formatBRL(porSocio)}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setGastoEditando(gasto)}
+                          className="p-1.5 text-white/20 hover:text-sky-400 transition-colors"
+                        >
+                          <PencilIcon className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => deleteGasto(gasto.id)}
+                          className="p-1.5 text-white/20 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2Icon className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 );
               })}
 
-            {/* vazio */}
             {!isLoading && (!gastos || gastos.length === 0) && (
               <TableRow className="border-0 hover:bg-transparent">
-                <TableCell colSpan={7} className="py-16 text-center">
+                <TableCell colSpan={8} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <DollarSignIcon className="w-8 h-8 text-white/10" />
                     <p className="text-sm text-white/30">
@@ -189,6 +213,15 @@ export default function GastosPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* dialog de edição */}
+      {gastoEditando && (
+        <EditGastoDialog
+          gasto={gastoEditando}
+          open={!!gastoEditando}
+          onClose={() => setGastoEditando(null)}
+        />
+      )}
     </div>
   );
 }

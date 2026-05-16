@@ -30,3 +30,23 @@ export async function CountSocietarios(): Promise<number> {
   if (error) throw new Error(error.message);
   return count ?? 0;
 }
+
+export async function DeleteGasto(id: string): Promise<void> {
+  const { error } = await supabase.from("gastos").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function UpdateGasto(
+  id: string,
+  input: Partial<CreateGastoInput>,
+): Promise<Gasto> {
+  const { data, error } = await supabase
+    .from("gastos")
+    .update(input)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
