@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { createBrowserClient } from "@supabase/ssr";
@@ -51,6 +52,39 @@ const menuItems = {
   ],
 };
 
+function MenuGroup({
+  label,
+  items,
+  isActive,
+}: {
+  label: string;
+  items: typeof menuItems.geral;
+  isActive: (url: string) => boolean;
+}) {
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {items.map((item) => (
+            <SidebarMenuItem key={item.url}>
+              <SidebarMenuButton isActive={isActive(item.url)}>
+                <Link
+                  href={item.url}
+                  className="flex items-center gap-2 w-full"
+                >
+                  <item.icon className="w-4 h-4 shrink-0" />
+                  <span>{item.label}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -67,8 +101,6 @@ export function AppSidebar() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
       setUserEmail(user.email ?? null);
-
-      // pega as iniciais do email (parte antes do @)
       const name = user.email?.split("@")[0] ?? "";
       const parts = name.split(".");
       const initials = parts
@@ -90,135 +122,82 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
+      {/* logo no topo */}
+      <div className="flex items-center justify-center px-4 py-4 border-b border-secondary">
+        <img
+          src="/gnoq2026.png"
+          alt="GNOQ"
+          className="w-full max-w-45 select-none pointer-events-none"
+        />
+      </div>
+
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Geral</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.geral.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton isActive={isActive(item.url)}>
-                    <Link
-                      href={item.url}
-                      className="flex items-center gap-2 w-full"
-                    >
-                      <item.icon className="w-4 h-4 shrink-0" />
-                      <span>{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Pessoas</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.pessoas.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton isActive={isActive(item.url)}>
-                    <Link
-                      href={item.url}
-                      className="flex items-center gap-2 w-full"
-                    >
-                      <item.icon className="w-4 h-4 shrink-0" />
-                      <span>{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Investimentos</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.investimentos.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton isActive={isActive(item.url)}>
-                    <Link
-                      href={item.url}
-                      className="flex items-center gap-2 w-full"
-                    >
-                      <item.icon className="w-4 h-4 shrink-0" />
-                      <span>{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Sistema</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.sistema.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton isActive={isActive(item.url)}>
-                    <Link
-                      href={item.url}
-                      className="flex items-center gap-2 w-full"
-                    >
-                      <item.icon className="w-4 h-4 shrink-0" />
-                      <span>{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Auditoria</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.auditoria.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton isActive={isActive(item.url)}>
-                    <Link
-                      href={item.url}
-                      className="flex items-center gap-2 w-full"
-                    >
-                      <item.icon className="w-4 h-4 shrink-0" />
-                      <span>{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <MenuGroup label="Geral" items={menuItems.geral} isActive={isActive} />
+        <MenuGroup
+          label="Pessoas"
+          items={menuItems.pessoas}
+          isActive={isActive}
+        />
+        <MenuGroup
+          label="Investimentos"
+          items={menuItems.investimentos}
+          isActive={isActive}
+        />
+        <MenuGroup
+          label="Sistema"
+          items={menuItems.sistema}
+          isActive={isActive}
+        />
+        <MenuGroup
+          label="Auditoria"
+          items={menuItems.auditoria}
+          isActive={isActive}
+        />
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-white/10">
+      <SidebarFooter style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}>
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex items-center justify-between px-2 py-1.5">
               <div className="flex items-center gap-2.5">
-                <Avatar className="w-8 h-8 border border-sky-500/30">
-                  <AvatarFallback className="bg-sky-500/20 text-sky-300 text-xs font-medium">
+                <Avatar
+                  className="w-8 h-8"
+                  style={{ border: "1px solid rgba(255,255,255,0.25)" }}
+                >
+                  <AvatarFallback
+                    className="text-xs font-medium"
+                    style={{
+                      background: "rgba(255,255,255,0.15)",
+                      color: "#ffffff",
+                    }}
+                  >
                     {userInitials}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col">
-                  <span className="text-sm font-medium text-white/80 max-w-36 truncate">
+                  <span
+                    className="text-sm font-medium max-w-36 truncate"
+                    style={{ color: "rgba(255,255,255,0.90)" }}
+                  >
                     {userEmail ?? "Carregando..."}
                   </span>
-                  <span className="text-xs text-white/30">Administrador</span>
+                  <span
+                    className="text-xs"
+                    style={{ color: "rgba(255,255,255,0.50)" }}
+                  >
+                    Administrador
+                  </span>
                 </div>
               </div>
 
-              {/* botão de logout */}
               <button
                 onClick={handleLogout}
-                className="p-1.5 text-white/20 hover:text-red-400 transition-colors"
+                className="p-1.5 transition-colors"
+                style={{ color: "rgba(255,255,255,0.30)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#fca5a5")}
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.color = "rgba(255,255,255,0.30)")
+                }
                 title="Sair"
               >
                 <LogOutIcon className="w-4 h-4" />

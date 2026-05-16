@@ -1,4 +1,5 @@
 "use client";
+
 import { useListFuncionarios } from "@/hooks/use-funcionarios";
 import { useCountSocietarios, useListGastos } from "@/hooks/use-gastos";
 import { useListOrcamentos } from "@/hooks/use-orcamentos";
@@ -26,13 +27,13 @@ function formatBRL(value: number) {
   }).format(value);
 }
 
-const COLORS = ["#0284c7", "#7dd3fc", "#38bdf8", "#0ea5e9", "#bae6fd"];
+const COLORS = ["#0F4C81", "#00719C", "#1a6db5", "#0090c4", "#5a9fd4"];
 
 const statusConfig = {
   rascunho: { label: "Rascunho", color: "#6b7280" },
-  enviado: { label: "Enviado", color: "#0284c7" },
-  aprovado: { label: "Aprovado", color: "#16a34a" },
-  recusado: { label: "Recusado", color: "#dc2626" },
+  enviado: { label: "Enviado", color: "#00719C" },
+  aprovado: { label: "Aprovado", color: "#15803d" },
+  recusado: { label: "Recusado", color: "#b91c1c" },
 };
 
 const HOJE = new Date();
@@ -45,19 +46,17 @@ export default function HomePage() {
   const { data: totalSocios = 0 } = useCountSocietarios();
   const { data: orcamentos } = useListOrcamentos();
 
-  // total mensal de gastos
-  const totalMensal = useMemo(() => {
-    return (
-      gastos?.reduce((acc, g) => {
-        return acc + (g.recorrencia === "mensal" ? g.valor : g.valor / 12);
-      }, 0) ?? 0
-    );
-  }, [gastos]);
+  const totalMensal = useMemo(
+    () =>
+      gastos?.reduce(
+        (acc, g) => acc + (g.recorrencia === "mensal" ? g.valor : g.valor / 12),
+        0,
+      ) ?? 0,
+    [gastos],
+  );
 
-  // custo por socio
   const custoPorSocio = totalSocios > 0 ? totalMensal / totalSocios : 0;
 
-  // orcamentos aprovados
   const orcamentosAprovados =
     orcamentos?.filter((o) => o.status === "aprovado").length ?? 0;
   const orcamentosAguardando =
@@ -66,20 +65,18 @@ export default function HomePage() {
     orcamentos?.filter((o) => {
       const validade = new Date(o.created_at);
       validade.setDate(validade.getDate() + o.validade_dias);
-      const diasRestantes = Math.ceil(
+      const dias = Math.ceil(
         (validade.getTime() - HOJE.getTime()) / (1000 * 60 * 60 * 24),
       );
-      return diasRestantes <= 7 && diasRestantes >= 0 && o.status === "enviado";
+      return dias <= 7 && dias >= 0 && o.status === "enviado";
     }).length ?? 0;
 
-  // dados pro gráfico de status
   const statusData = Object.entries(statusConfig).map(([key, config]) => ({
     name: config.label,
     value: orcamentos?.filter((o) => o.status === key).length ?? 0,
     color: config.color,
   }));
 
-  // dados pro gráfico de gastos por categoria
   const gastosCategoria = useMemo(() => {
     const map: Record<string, number> = {};
     gastos?.forEach((g) => {
@@ -90,7 +87,6 @@ export default function HomePage() {
     return Object.entries(map).map(([name, value]) => ({ name, value }));
   }, [gastos]);
 
-  // dados pro gráfico de orcamentos por mes
   const orcamentosPorMes = useMemo(() => {
     const map: Record<string, number> = {};
     orcamentos?.forEach((o) => {
@@ -105,15 +101,31 @@ export default function HomePage() {
       .map(([name, value]) => ({ name, value }));
   }, [orcamentos]);
 
-  // ultimos orcamentos
   const ultimosOrcamentos = orcamentos?.slice(0, 5) ?? [];
+
+  const tooltipStyle = {
+    contentStyle: {
+      background: "var(--bg-card)",
+      border: "1px solid var(--border)",
+      borderRadius: 8,
+      fontSize: 12,
+      color: "var(--text-primary)",
+    },
+    labelStyle: { color: "var(--text-primary)" },
+    itemStyle: { color: "var(--primary)" },
+  };
 
   return (
     <div className="p-8 flex flex-col gap-6">
       {/* saudação */}
       <div>
-        <h1 className="text-xl font-semibold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
+        <h1
+          className="text-xl font-semibold"
+          style={{ color: "var(--text-primary)" }}
+        >
+          Dashboard
+        </h1>
+        <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
           Visão geral da GNOQ
         </p>
       </div>
@@ -125,38 +137,47 @@ export default function HomePage() {
             label: "Funcionários",
             value: funcionarios?.length ?? 0,
             suffix: "ativos",
-            color: "text-sky-300",
+            color: "var(--primary)",
           },
           {
             label: "Gasto mensal",
             value: formatBRL(totalMensal),
             suffix: "fixo",
-            color: "text-sky-300",
+            color: "var(--primary)",
           },
           {
             label: "Custo por sócio",
             value: formatBRL(custoPorSocio),
             suffix: "por mês",
-            color: "text-sky-300",
+            color: "var(--secondary)",
           },
           {
             label: "Orçamentos aprovados",
             value: orcamentosAprovados,
             suffix: "no total",
-            color: "text-green-400",
+            color: "var(--success)",
           },
         ].map((card) => (
           <div
             key={card.label}
-            className="rounded-xl border border-white/10 bg-white/[0.02] p-5 flex flex-col gap-1"
+            className="rounded-xl p-5 flex flex-col gap-1"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+            }}
           >
-            <p className="text-xs text-white/30 uppercase tracking-wider">
+            <p
+              className="text-xs uppercase tracking-wider"
+              style={{ color: "var(--text-muted)" }}
+            >
               {card.label}
             </p>
-            <p className={`text-2xl font-semibold ${card.color}`}>
+            <p className="text-2xl font-semibold" style={{ color: card.color }}>
               {card.value}
             </p>
-            <p className="text-xs text-white/20">{card.suffix}</p>
+            <p className="text-xs" style={{ color: "var(--text-faint)" }}>
+              {card.suffix}
+            </p>
           </div>
         ))}
       </div>
@@ -165,18 +186,36 @@ export default function HomePage() {
       {(orcamentosAguardando > 0 || orcamentosVencendo > 0) && (
         <div className="flex gap-3">
           {orcamentosAguardando > 0 && (
-            <div className="flex-1 rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-3 flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-sky-400" />
-              <p className="text-sm text-sky-300">
+            <div
+              className="flex-1 rounded-xl px-4 py-3 flex items-center gap-3"
+              style={{
+                border: "1px solid var(--secondary-border)",
+                background: "var(--secondary-bg)",
+              }}
+            >
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ background: "var(--secondary)" }}
+              />
+              <p className="text-sm" style={{ color: "var(--secondary)" }}>
                 {orcamentosAguardando} orçamento
                 {orcamentosAguardando > 1 ? "s" : ""} aguardando resposta
               </p>
             </div>
           )}
           {orcamentosVencendo > 0 && (
-            <div className="flex-1 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-amber-400" />
-              <p className="text-sm text-amber-300">
+            <div
+              className="flex-1 rounded-xl px-4 py-3 flex items-center gap-3"
+              style={{
+                border: "1px solid var(--warning-border)",
+                background: "var(--warning-bg)",
+              }}
+            >
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ background: "var(--warning)" }}
+              />
+              <p className="text-sm" style={{ color: "var(--warning)" }}>
                 {orcamentosVencendo} orçamento
                 {orcamentosVencendo > 1 ? "s" : ""} vencendo em até 7 dias
               </p>
@@ -187,9 +226,17 @@ export default function HomePage() {
 
       {/* gráficos linha 1 */}
       <div className="grid grid-cols-3 gap-4">
-        {/* orcamentos por status */}
-        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-5 flex flex-col gap-4">
-          <p className="text-xs text-white/30 uppercase tracking-wider">
+        <div
+          className="rounded-xl p-5 flex flex-col gap-4"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <p
+            className="text-xs uppercase tracking-wider"
+            style={{ color: "var(--text-muted)" }}
+          >
             Orçamentos por status
           </p>
           <ResponsiveContainer width="100%" height={180}>
@@ -207,16 +254,7 @@ export default function HomePage() {
                   <Cell key={index} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip
-                contentStyle={{
-                  background: "#0d0d1a",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 8,
-                  fontSize: 12,
-                }}
-                labelStyle={{ color: "#fff" }}
-                itemStyle={{ color: "#7dd3fc" }}
-              />
+              <Tooltip {...tooltipStyle} />
             </PieChart>
           </ResponsiveContainer>
           <div className="flex flex-wrap gap-2">
@@ -226,7 +264,10 @@ export default function HomePage() {
                   className="w-2 h-2 rounded-full"
                   style={{ background: s.color }}
                 />
-                <span className="text-xs text-white/40">
+                <span
+                  className="text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
                   {s.name} ({s.value})
                 </span>
               </div>
@@ -234,9 +275,17 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* gastos por categoria */}
-        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-5 flex flex-col gap-4">
-          <p className="text-xs text-white/30 uppercase tracking-wider">
+        <div
+          className="rounded-xl p-5 flex flex-col gap-4"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <p
+            className="text-xs uppercase tracking-wider"
+            style={{ color: "var(--text-muted)" }}
+          >
             Gastos mensais por categoria
           </p>
           <ResponsiveContainer width="100%" height={180}>
@@ -256,14 +305,7 @@ export default function HomePage() {
               </Pie>
               <Tooltip
                 formatter={(value) => [formatBRL(Number(value)), ""]}
-                contentStyle={{
-                  background: "#0d0d1a",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 8,
-                  fontSize: 12,
-                }}
-                labelStyle={{ color: "#fff" }}
-                itemStyle={{ color: "#7dd3fc" }}
+                {...tooltipStyle}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -274,51 +316,52 @@ export default function HomePage() {
                   className="w-2 h-2 rounded-full"
                   style={{ background: COLORS[i % COLORS.length] }}
                 />
-                <span className="text-xs text-white/40">{g.name}</span>
+                <span
+                  className="text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {g.name}
+                </span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* orcamentos por mes */}
-        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-5 flex flex-col gap-4">
-          <p className="text-xs text-white/30 uppercase tracking-wider">
+        <div
+          className="rounded-xl p-5 flex flex-col gap-4"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <p
+            className="text-xs uppercase tracking-wider"
+            style={{ color: "var(--text-muted)" }}
+          >
             Orçamentos criados (últimos 6 meses)
           </p>
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={orcamentosPorMes}>
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="rgba(255,255,255,0.05)"
-              />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
                 dataKey="name"
-                tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }}
+                tick={{ fontSize: 10, fill: "var(--text-muted)" }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }}
+                tick={{ fontSize: 10, fill: "var(--text-muted)" }}
                 axisLine={false}
                 tickLine={false}
                 allowDecimals={false}
               />
-              <Tooltip
-                contentStyle={{
-                  background: "#0d0d1a",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 8,
-                  fontSize: 12,
-                }}
-                labelStyle={{ color: "#fff" }}
-                itemStyle={{ color: "#7dd3fc" }}
-              />
+              <Tooltip {...tooltipStyle} />
               <Line
                 type="monotone"
                 dataKey="value"
-                stroke="#0284c7"
+                stroke="var(--primary)"
                 strokeWidth={2}
-                dot={{ fill: "#0284c7", r: 4 }}
+                dot={{ fill: "var(--primary)", r: 4 }}
                 activeDot={{ r: 6 }}
               />
             </LineChart>
@@ -328,21 +371,29 @@ export default function HomePage() {
 
       {/* gráfico de gastos + tabela de orcamentos */}
       <div className="grid grid-cols-2 gap-4">
-        {/* barras de gastos */}
-        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-5 flex flex-col gap-4">
-          <p className="text-xs text-white/30 uppercase tracking-wider">
+        <div
+          className="rounded-xl p-5 flex flex-col gap-4"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <p
+            className="text-xs uppercase tracking-wider"
+            style={{ color: "var(--text-muted)" }}
+          >
             Valor mensal por categoria
           </p>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={gastosCategoria} layout="vertical">
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="rgba(255,255,255,0.05)"
+                stroke="var(--border)"
                 horizontal={false}
               />
               <XAxis
                 type="number"
-                tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }}
+                tick={{ fontSize: 10, fill: "var(--text-muted)" }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`}
@@ -350,35 +401,42 @@ export default function HomePage() {
               <YAxis
                 type="category"
                 dataKey="name"
-                tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }}
+                tick={{ fontSize: 10, fill: "var(--text-muted)" }}
                 axisLine={false}
                 tickLine={false}
                 width={80}
               />
               <Tooltip
                 formatter={(value) => [formatBRL(Number(value)), ""]}
-                contentStyle={{
-                  background: "#0d0d1a",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 8,
-                  fontSize: 12,
-                }}
-                labelStyle={{ color: "#fff" }}
-                itemStyle={{ color: "#7dd3fc" }}
+                {...tooltipStyle}
               />
-              <Bar dataKey="value" fill="#0284c7" radius={[0, 4, 4, 0]} />
+              <Bar
+                dataKey="value"
+                fill="var(--primary)"
+                radius={[0, 4, 4, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        {/* ultimos orcamentos */}
-        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-5 flex flex-col gap-4">
-          <p className="text-xs text-white/30 uppercase tracking-wider">
+        <div
+          className="rounded-xl p-5 flex flex-col gap-4"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <p
+            className="text-xs uppercase tracking-wider"
+            style={{ color: "var(--text-muted)" }}
+          >
             Últimos orçamentos
           </p>
           <div className="flex flex-col gap-2">
             {ultimosOrcamentos.length === 0 && (
-              <p className="text-sm text-white/20">Nenhum orçamento ainda.</p>
+              <p className="text-sm" style={{ color: "var(--text-faint)" }}>
+                Nenhum orçamento ainda.
+              </p>
             )}
             {ultimosOrcamentos.map((o) => {
               const st = statusConfig[o.status as keyof typeof statusConfig];
@@ -387,11 +445,20 @@ export default function HomePage() {
                 <div
                   key={o.id}
                   onClick={() => router.push(`/orcamentos/${o.id}`)}
-                  className="flex items-center justify-between py-2.5 border-b border-white/5 last:border-0 cursor-pointer hover:opacity-80 transition-opacity"
+                  className="flex items-center justify-between py-2.5 cursor-pointer hover:opacity-80 transition-opacity"
+                  style={{ borderBottom: "1px solid var(--border)" }}
                 >
                   <div>
-                    <p className="text-sm text-white/80">{o.titulo}</p>
-                    <p className="text-xs text-white/30 mt-0.5">
+                    <p
+                      className="text-sm font-medium"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {o.titulo}
+                    </p>
+                    <p
+                      className="text-xs mt-0.5"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       {cliente?.nome ?? "—"}
                     </p>
                   </div>

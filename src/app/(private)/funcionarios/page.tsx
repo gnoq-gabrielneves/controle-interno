@@ -1,4 +1,5 @@
 "use client";
+
 import { NewFuncionario } from "@/components/NewFuncionario/NewFuncionario";
 import {
   Table,
@@ -21,8 +22,13 @@ export default function FuncionariosPage() {
       {/* cabeçalho */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Funcionários</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <h1
+            className="text-xl font-semibold"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Funcionários
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
             {data?.length ?? 0} funcionários cadastrados
           </p>
         </div>
@@ -30,25 +36,30 @@ export default function FuncionariosPage() {
       </div>
 
       {/* tabela */}
-      <div className="rounded-xl border border-white/10 overflow-hidden">
+      <div
+        className="rounded-xl overflow-hidden"
+        style={{ border: "1px solid var(--border)" }}
+      >
         <Table>
           <TableHeader>
-            <TableRow className="border-white/10 hover:bg-transparent bg-white/2">
-              <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                Nome
-              </TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                Cargo
-              </TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                CPF
-              </TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                Salário
-              </TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                Tipo de Contrato
-              </TableHead>
+            <TableRow
+              style={{
+                borderColor: "var(--border)",
+                backgroundColor: "var(--bg-card-alt)",
+              }}
+              className="hover:bg-transparent"
+            >
+              {["Nome", "Cargo", "CPF", "Salário", "Tipo de Contrato"].map(
+                (h) => (
+                  <TableHead
+                    key={h}
+                    className="text-xs uppercase tracking-wider"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {h}
+                  </TableHead>
+                ),
+              )}
             </TableRow>
           </TableHeader>
 
@@ -56,9 +67,15 @@ export default function FuncionariosPage() {
             {/* loading */}
             {isLoading && (
               <TableRow className="border-0 hover:bg-transparent">
-                <TableCell colSpan={2} className="py-16 text-center">
+                <TableCell colSpan={5} className="py-16 text-center">
                   <div className="flex justify-center">
-                    <div className="w-5 h-5 rounded-full border-2 border-sky-500/30 border-t-sky-400 animate-spin" />
+                    <div
+                      className="w-5 h-5 rounded-full border-2 animate-spin"
+                      style={{
+                        borderColor: "var(--primary-border)",
+                        borderTopColor: "var(--primary)",
+                      }}
+                    />
                   </div>
                 </TableCell>
               </TableRow>
@@ -70,35 +87,58 @@ export default function FuncionariosPage() {
                 <TableRow
                   key={funcionario.id}
                   onClick={() => router.push(`/funcionarios/${funcionario.id}`)}
-                  className="border-white/5 hover:bg-white/3 cursor-pointer transition-colors"
+                  className="cursor-pointer transition-colors"
+                  style={{ borderColor: "var(--border)" }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.backgroundColor = "var(--bg-hover)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.backgroundColor = "transparent")
+                  }
                 >
                   {/* nome com avatar */}
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full bg-sky-500/20 border border-sky-500/30 flex items-center justify-center text-sky-300 text-xs font-medium">
+                      <div
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium"
+                        style={{
+                          background: "var(--primary-bg)",
+                          border: "1px solid var(--primary-border)",
+                          color: "var(--primary)",
+                        }}
+                      >
                         {(funcionario.name ?? "")
                           .split(" ")
                           .slice(0, 2)
                           .map((n: string) => n.charAt(0).toUpperCase())
                           .join("") || "?"}
                       </div>
-                      <span className="text-sm text-white/80">
+                      <span
+                        className="text-sm font-medium"
+                        style={{ color: "var(--text-primary)" }}
+                      >
                         {funcionario.name}
                       </span>
                     </div>
                   </TableCell>
 
-                  {/* cargo */}
-                  <TableCell className="text-sm text-white/50">
+                  <TableCell
+                    className="text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     {funcionario.cargo}
                   </TableCell>
-                  {/* cpf */}
-                  <TableCell className="text-sm text-white/50">
+
+                  <TableCell
+                    className="text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     {funcionario.cpf}
                   </TableCell>
-                  {/* salario */}
+
                   <TableCell
-                    className="text-sm text-white/50"
+                    className="text-sm"
+                    style={{ color: "var(--text-secondary)" }}
                     title={`R$ ${((funcionario.salario ?? 0) / 220).toFixed(2)}/h (base 220h)`}
                   >
                     {new Intl.NumberFormat("pt-BR", {
@@ -106,8 +146,18 @@ export default function FuncionariosPage() {
                       currency: "BRL",
                     }).format(funcionario.salario ?? 0)}
                   </TableCell>
-                  <TableCell className="text-sm text-white/50">
-                    {funcionario.tipo_contrato.toUpperCase()}
+
+                  <TableCell className="text-sm">
+                    <span
+                      className="px-2 py-1 rounded-full text-xs font-medium"
+                      style={{
+                        background: "var(--primary-bg)",
+                        color: "var(--primary)",
+                        border: "1px solid var(--primary-border)",
+                      }}
+                    >
+                      {funcionario.tipo_contrato.toUpperCase()}
+                    </span>
                   </TableCell>
                 </TableRow>
               ))}
@@ -115,10 +165,16 @@ export default function FuncionariosPage() {
             {/* vazio */}
             {!isLoading && (!data || data.length === 0) && (
               <TableRow className="border-0 hover:bg-transparent">
-                <TableCell colSpan={2} className="py-16 text-center">
+                <TableCell colSpan={5} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
-                    <UserIcon className="w-8 h-8 text-white/10" />
-                    <p className="text-sm text-white/30">
+                    <UserIcon
+                      className="w-8 h-8"
+                      style={{ color: "var(--text-faint)" }}
+                    />
+                    <p
+                      className="text-sm"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       Nenhum funcionário cadastrado
                     </p>
                   </div>

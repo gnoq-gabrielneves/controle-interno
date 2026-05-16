@@ -1,4 +1,5 @@
 "use client";
+
 import { NewCliente } from "@/components/NewCliente/NewCliente";
 import {
   Table,
@@ -21,8 +22,13 @@ export default function ClientesPage() {
       {/* cabeçalho */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Clientes</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <h1
+            className="text-xl font-semibold"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Clientes
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
             {data?.length ?? 0} clientes cadastrados
           </p>
         </div>
@@ -30,25 +36,30 @@ export default function ClientesPage() {
       </div>
 
       {/* tabela */}
-      <div className="rounded-xl border border-white/10 overflow-hidden">
+      <div
+        className="rounded-xl overflow-hidden"
+        style={{ border: "1px solid var(--border)" }}
+      >
         <Table>
           <TableHeader>
-            <TableRow className="border-white/10 hover:bg-transparent bg-white/2">
-              <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                Nome
-              </TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                CPF / CNPJ
-              </TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                Email
-              </TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                Telefone
-              </TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                Cidade
-              </TableHead>
+            <TableRow
+              className="hover:bg-transparent"
+              style={{
+                borderColor: "var(--border)",
+                backgroundColor: "var(--bg-card-alt)",
+              }}
+            >
+              {["Nome", "CPF / CNPJ", "Email", "Telefone", "Cidade"].map(
+                (h) => (
+                  <TableHead
+                    key={h}
+                    className="text-xs uppercase tracking-wider"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {h}
+                  </TableHead>
+                ),
+              )}
             </TableRow>
           </TableHeader>
 
@@ -58,7 +69,13 @@ export default function ClientesPage() {
               <TableRow className="border-0 hover:bg-transparent">
                 <TableCell colSpan={5} className="py-16 text-center">
                   <div className="flex justify-center">
-                    <div className="w-5 h-5 rounded-full border-2 border-sky-500/30 border-t-sky-400 animate-spin" />
+                    <div
+                      className="w-5 h-5 rounded-full border-2 animate-spin"
+                      style={{
+                        borderColor: "var(--primary-border)",
+                        borderTopColor: "var(--primary)",
+                      }}
+                    />
                   </div>
                 </TableCell>
               </TableRow>
@@ -70,32 +87,61 @@ export default function ClientesPage() {
                 <TableRow
                   key={cliente.id}
                   onClick={() => router.push(`/clientes/${cliente.id}`)}
-                  className="border-white/5 hover:bg-white/3 cursor-pointer transition-colors"
+                  className="cursor-pointer transition-colors"
+                  style={{ borderColor: "var(--border)" }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.backgroundColor = "var(--bg-hover)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.backgroundColor = "transparent")
+                  }
                 >
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full bg-sky-500/20 border border-sky-500/30 flex items-center justify-center text-sky-300 text-xs font-medium">
+                      <div
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium"
+                        style={{
+                          background: "var(--secondary-bg)",
+                          border: "1px solid var(--secondary-border)",
+                          color: "var(--secondary)",
+                        }}
+                      >
                         {(cliente.nome ?? "")
                           .split(" ")
                           .slice(0, 2)
                           .map((n: string) => n.charAt(0).toUpperCase())
                           .join("") || "?"}
                       </div>
-                      <span className="text-sm text-white/80">
+                      <span
+                        className="text-sm font-medium"
+                        style={{ color: "var(--text-primary)" }}
+                      >
                         {cliente.nome}
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm text-white/50">
+                  <TableCell
+                    className="text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     {cliente.cpf_cnpj ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm text-white/50">
+                  <TableCell
+                    className="text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     {cliente.email ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm text-white/50">
+                  <TableCell
+                    className="text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     {cliente.telefone ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm text-white/50">
+                  <TableCell
+                    className="text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     {cliente.cidade
                       ? `${cliente.cidade}/${cliente.estado}`
                       : "—"}
@@ -108,8 +154,14 @@ export default function ClientesPage() {
               <TableRow className="border-0 hover:bg-transparent">
                 <TableCell colSpan={5} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
-                    <BuildingIcon className="w-8 h-8 text-white/10" />
-                    <p className="text-sm text-white/30">
+                    <BuildingIcon
+                      className="w-8 h-8"
+                      style={{ color: "var(--text-faint)" }}
+                    />
+                    <p
+                      className="text-sm"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       Nenhum cliente cadastrado
                     </p>
                   </div>

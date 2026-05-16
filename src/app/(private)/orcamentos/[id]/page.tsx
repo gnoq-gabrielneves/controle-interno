@@ -1,4 +1,5 @@
 "use client";
+
 import { OrcamentoPDF } from "@/components/OrcamentoPdf/OrcamentoPdf";
 import {
   Select,
@@ -30,45 +31,48 @@ function formatBRL(value: number) {
   }).format(value);
 }
 
-const statusConfig: Record<OrcamentoStatus, { label: string; class: string }> =
-  {
-    rascunho: {
-      label: "Rascunho",
-      class: "bg-white/10 border-white/20 text-white/50",
-    },
-    enviado: {
-      label: "Enviado",
-      class: "bg-sky-500/10 border-sky-500/30 text-sky-300",
-    },
-    aprovado: {
-      label: "Aprovado",
-      class: "bg-green-500/10 border-green-500/30 text-green-300",
-    },
-    recusado: {
-      label: "Recusado",
-      class: "bg-red-500/10 border-red-500/30 text-red-300",
-    },
-  };
-
-type FuncionarioData = {
-  id: number;
-  name: string;
-  salario: number;
+const statusConfig: Record<
+  OrcamentoStatus,
+  { label: string; color: string; bg: string; border: string }
+> = {
+  rascunho: {
+    label: "Rascunho",
+    color: "#6b7280",
+    bg: "rgba(107,114,128,0.10)",
+    border: "rgba(107,114,128,0.30)",
+  },
+  enviado: {
+    label: "Enviado",
+    color: "#00719C",
+    bg: "rgba(0,113,156,0.10)",
+    border: "rgba(0,113,156,0.30)",
+  },
+  aprovado: {
+    label: "Aprovado",
+    color: "#15803d",
+    bg: "rgba(21,128,61,0.10)",
+    border: "rgba(21,128,61,0.30)",
+  },
+  recusado: {
+    label: "Recusado",
+    color: "#b91c1c",
+    bg: "rgba(185,28,28,0.10)",
+    border: "rgba(185,28,28,0.30)",
+  },
 };
 
+type FuncionarioData = { id: number; name: string; salario: number };
 type ItemFuncionario = {
   id: string;
   horas: number;
   funcionario: number;
   funcionario_data: FuncionarioData | FuncionarioData[] | null;
 };
-
 type OrcamentoItem = {
   id: string;
   descricao: string;
   orcamento_item_funcionarios: ItemFuncionario[];
 };
-
 type ClienteData = {
   id: string;
   nome: string;
@@ -80,7 +84,6 @@ type ClienteData = {
   cidade: string | null;
   estado: string | null;
 };
-
 type OrcamentoDetalhe = {
   id: string;
   numero: number | null;
@@ -94,11 +97,7 @@ type OrcamentoDetalhe = {
   cliente: ClienteData | null;
   orcamento_itens: OrcamentoItem[];
 };
-
-type Gasto = {
-  recorrencia: "mensal" | "anual";
-  valor: number;
-};
+type Gasto = { recorrencia: "mensal" | "anual"; valor: number };
 
 export default function OrcamentoPage() {
   const { id } = useParams<{ id: string }>();
@@ -107,13 +106,18 @@ export default function OrcamentoPage() {
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="w-5 h-5 rounded-full border-2 border-sky-500/30 border-t-sky-400 animate-spin" />
+        <div
+          className="w-5 h-5 rounded-full border-2 animate-spin"
+          style={{
+            borderColor: "var(--primary-border)",
+            borderTopColor: "var(--primary)",
+          }}
+        />
       </div>
     );
   }
 
   if (!orcamento) return null;
-
   return (
     <OrcamentoDetail orcamento={orcamento as unknown as OrcamentoDetalhe} />
   );
@@ -129,11 +133,11 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
 
   const overheadPorHora = useMemo(() => {
     const totalMensal =
-      (gastos as Gasto[] | undefined)?.reduce((acc, g) => {
-        return acc + (g.recorrencia === "mensal" ? g.valor : g.valor / 12);
-      }, 0) ?? 0;
-    const totalFunc = funcionarios?.length ?? 1;
-    return totalMensal / (totalFunc * 220);
+      (gastos as Gasto[] | undefined)?.reduce(
+        (acc, g) => acc + (g.recorrencia === "mensal" ? g.valor : g.valor / 12),
+        0,
+      ) ?? 0;
+    return totalMensal / ((funcionarios?.length ?? 1) * 220);
   }, [gastos, funcionarios]);
 
   function calcularItem(item: OrcamentoItem) {
@@ -143,21 +147,17 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
           ? f.funcionario_data[0]
           : f.funcionario_data;
         if (!func) return acc;
-        const salarioPorHora = (func.salario ?? 0) / 220;
-        return acc + f.horas * (salarioPorHora + overheadPorHora);
+        return acc + f.horas * ((func.salario ?? 0) / 220 + overheadPorHora);
       },
       0,
     );
-
     const comMargem = custoBase * (1 + orcamento.margem_lucro);
     const comImposto = comMargem * (1 + orcamento.aliquota_imposto);
     return { custoBase, comMargem, comImposto };
   }
 
   const totalOrcamento = (orcamento.orcamento_itens ?? []).reduce(
-    (acc, item) => {
-      return acc + calcularItem(item).comImposto;
-    },
+    (acc, item) => acc + calcularItem(item).comImposto,
     0,
   );
 
@@ -165,9 +165,10 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
   const validade = new Date(orcamento.created_at);
   validade.setDate(validade.getDate() + orcamento.validade_dias);
 
+  const st = statusConfig[orcamento.status];
+
   async function handleExportPDF() {
     const { pdf } = await import("@react-pdf/renderer");
-
     const doc = (
       <OrcamentoPDF
         numero={orcamento.numero ?? null}
@@ -184,7 +185,6 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
         totalOrcamento={totalOrcamento}
       />
     );
-
     const blob = await pdf(doc).toBlob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -194,6 +194,13 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
     URL.revokeObjectURL(url);
   }
 
+  const sectionStyle = {
+    background: "var(--bg-card)",
+    border: "1px solid var(--border)",
+    borderRadius: 12,
+    padding: 24,
+  };
+
   return (
     <div className="p-8 w-full flex flex-col gap-6">
       {/* cabeçalho */}
@@ -201,13 +208,31 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
-            className="p-2 rounded-lg border border-white/10 hover:bg-white/5 transition-all text-white/50 hover:text-white/80"
+            className="p-2 rounded-lg transition-all"
+            style={{
+              border: "1px solid var(--border)",
+              color: "var(--text-muted)",
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.backgroundColor = "var(--bg-hover)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.backgroundColor = "transparent")
+            }
           >
             <ArrowLeftIcon className="w-4 h-4" />
           </button>
           <div>
-            <h1 className="text-xl font-semibold">{orcamento.titulo}</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <h1
+              className="text-xl font-semibold"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {orcamento.titulo}
+            </h1>
+            <p
+              className="text-sm mt-0.5"
+              style={{ color: "var(--text-muted)" }}
+            >
               {cliente?.nome ?? "—"} · Válido até{" "}
               {validade.toLocaleDateString("pt-BR")}
             </p>
@@ -215,45 +240,83 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* select de status */}
           <Select
             value={orcamento.status}
             onValueChange={(v) => v && updateStatus(v as OrcamentoStatus)}
             disabled={updatingStatus}
           >
             <SelectTrigger
-              className={`w-36 border text-xs ${statusConfig[orcamento.status].class}`}
+              className="w-36 text-xs"
+              style={{
+                color: st.color,
+                background: st.bg,
+                border: `1px solid ${st.border}`,
+              }}
             >
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="bg-[#0d0d1a] border-white/10 text-white">
-              <SelectItem value="rascunho">Rascunho</SelectItem>
-              <SelectItem value="enviado">Enviado</SelectItem>
-              <SelectItem value="aprovado">Aprovado</SelectItem>
-              <SelectItem value="recusado">Recusado</SelectItem>
+            <SelectContent
+              style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              {Object.entries(statusConfig).map(([key, s]) => (
+                <SelectItem key={key} value={key} style={{ color: s.color }}>
+                  {s.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
-          <button
-            onClick={() => router.push(`/orcamentos/${orcamento.id}/editar`)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 text-white/50 text-sm hover:bg-white/5 hover:text-white/80 transition-all"
-          >
-            <PencilIcon className="w-4 h-4" />
-            Editar
-          </button>
-
-          <button
-            onClick={() =>
-              router.push(`/orcamentos/${orcamento.id}/distribuicao`)
-            }
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 text-white/50 text-sm hover:bg-white/5 hover:text-white/80 transition-all"
-          >
-            <CalculatorIcon className="w-4 h-4" />
-            Distribuição
-          </button>
+          {[
+            {
+              label: "Editar",
+              icon: PencilIcon,
+              onClick: () => router.push(`/orcamentos/${orcamento.id}/editar`),
+            },
+            {
+              label: "Distribuição",
+              icon: CalculatorIcon,
+              onClick: () =>
+                router.push(`/orcamentos/${orcamento.id}/distribuicao`),
+            },
+          ].map((btn) => (
+            <button
+              key={btn.label}
+              onClick={btn.onClick}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all"
+              style={{
+                border: "1px solid var(--border)",
+                color: "var(--text-muted)",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = "var(--bg-hover)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = "transparent")
+              }
+            >
+              <btn.icon className="w-4 h-4" />
+              {btn.label}
+            </button>
+          ))}
 
           <button
             onClick={handleExportPDF}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-sky-500/30 bg-sky-500/10 text-sky-300 text-sm hover:bg-sky-500/20 transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+            style={{
+              background: "var(--primary)",
+              color: "#ffffff",
+              border: "1px solid var(--primary)",
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.background = "var(--primary-light)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "var(--primary)")
+            }
           >
             <DownloadIcon className="w-4 h-4" />
             Exportar PDF
@@ -261,118 +324,158 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
         </div>
       </div>
 
-      {/* conteúdo que vai pro PDF */}
-      <div ref={pdfRef} className="flex flex-col gap-6 p-2">
-        {/* info do cliente */}
-        <div className="rounded-xl border border-white/10 bg-white/2 p-6 grid grid-cols-2 gap-4">
+      <div ref={pdfRef} className="flex flex-col gap-6">
+        {/* info do cliente + detalhes */}
+        <div style={sectionStyle} className="grid grid-cols-2 gap-6">
           <div>
-            <p className="text-xs text-white/30 uppercase tracking-wider mb-3">
+            <p
+              className="text-xs uppercase tracking-wider mb-3"
+              style={{ color: "var(--text-muted)" }}
+            >
               Cliente
             </p>
-            <p className="text-sm font-medium text-white/80">
+            <p
+              className="text-sm font-medium"
+              style={{ color: "var(--text-primary)" }}
+            >
               {cliente?.nome ?? "—"}
             </p>
-            <p className="text-sm text-white/50 mt-1">
+            <p
+              className="text-sm mt-1"
+              style={{ color: "var(--text-secondary)" }}
+            >
               {cliente?.email ?? "—"}
             </p>
-            <p className="text-sm text-white/50">{cliente?.cpf_cnpj ?? "—"}</p>
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+              {cliente?.cpf_cnpj ?? "—"}
+            </p>
             {cliente?.logradouro && (
-              <p className="text-sm text-white/50 mt-1">
+              <p
+                className="text-sm mt-1"
+                style={{ color: "var(--text-secondary)" }}
+              >
                 {cliente.logradouro}, {cliente.numero} — {cliente.cidade}/
                 {cliente.estado}
               </p>
             )}
           </div>
           <div>
-            <p className="text-xs text-white/30 uppercase tracking-wider mb-3">
+            <p
+              className="text-xs uppercase tracking-wider mb-3"
+              style={{ color: "var(--text-muted)" }}
+            >
               Detalhes
             </p>
-            <div className="flex flex-col gap-1.5">
-              <div className="flex justify-between text-sm">
-                <span className="text-white/30">Margem de lucro</span>
-                <span className="text-white/60">
-                  {(orcamento.margem_lucro * 100).toFixed(1)}%
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-white/30">Alíquota imposto</span>
-                <span className="text-white/60">
-                  {(orcamento.aliquota_imposto * 100).toFixed(1)}%
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-white/30">Overhead/hora</span>
-                <span className="text-white/60">
-                  {formatBRL(overheadPorHora)}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-white/30">Validade</span>
-                <span className="text-white/60">
-                  {validade.toLocaleDateString("pt-BR")}
-                </span>
-              </div>
+            <div className="flex flex-col gap-2">
+              {[
+                {
+                  label: "Margem de lucro",
+                  value: `${(orcamento.margem_lucro * 100).toFixed(1)}%`,
+                },
+                {
+                  label: "Alíquota imposto",
+                  value: `${(orcamento.aliquota_imposto * 100).toFixed(1)}%`,
+                },
+                { label: "Overhead/hora", value: formatBRL(overheadPorHora) },
+                {
+                  label: "Validade",
+                  value: validade.toLocaleDateString("pt-BR"),
+                },
+              ].map((row) => (
+                <div key={row.label} className="flex justify-between text-sm">
+                  <span style={{ color: "var(--text-muted)" }}>
+                    {row.label}
+                  </span>
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    {row.value}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
 
         {/* itens */}
         <div className="flex flex-col gap-3">
-          <p className="text-xs text-white/30 uppercase tracking-wider">
+          <p
+            className="text-xs uppercase tracking-wider"
+            style={{ color: "var(--text-muted)" }}
+          >
             Itens
           </p>
 
           {(orcamento.orcamento_itens ?? []).map((item, index) => {
             const calc = calcularItem(item);
-
             return (
               <div
                 key={item.id}
-                className="rounded-xl border border-white/10 bg-white/[0.02] p-5 flex flex-col gap-3"
+                style={sectionStyle}
+                className="flex flex-col gap-3"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-white/30">{index + 1}.</span>
-                    <span className="text-sm font-medium text-white/80">
+                    <span
+                      className="text-xs"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      {index + 1}.
+                    </span>
+                    <span
+                      className="text-sm font-medium"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       {item.descricao}
                     </span>
                   </div>
-                  <span className="text-sm font-medium text-sky-300">
+                  <span
+                    className="text-sm font-semibold"
+                    style={{ color: "var(--primary)" }}
+                  >
                     {formatBRL(calc.comImposto)}
                   </span>
                 </div>
 
                 {(item.orcamento_item_funcionarios ?? []).length > 0 && (
-                  <div className="ml-6 flex flex-col gap-1.5 pt-2 border-t border-white/5">
+                  <div
+                    className="ml-6 flex flex-col gap-1.5 pt-2"
+                    style={{ borderTop: "1px solid var(--border)" }}
+                  >
                     {(item.orcamento_item_funcionarios ?? []).map((f) => {
                       const func = Array.isArray(f.funcionario_data)
                         ? f.funcionario_data[0]
                         : f.funcionario_data;
-
                       const salarioPorHora = (func?.salario ?? 0) / 220;
-                      const custoFuncionario =
+                      const custoFunc =
                         f.horas * (salarioPorHora + overheadPorHora);
-
                       return (
                         <div
                           key={f.id}
                           className="flex items-center justify-between text-sm"
                         >
                           <div className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-full bg-sky-500/20 border border-sky-500/30 flex items-center justify-center text-sky-300 text-[10px] font-medium">
+                            <div
+                              className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium"
+                              style={{
+                                background: "var(--primary-bg)",
+                                border: "1px solid var(--primary-border)",
+                                color: "var(--primary)",
+                              }}
+                            >
                               {(func?.name ?? "?").charAt(0).toUpperCase()}
                             </div>
-                            <span className="text-white/60">
+                            <span style={{ color: "var(--text-secondary)" }}>
                               {func?.name ?? "—"}
                             </span>
-                            <span className="text-white/30">·</span>
-                            <span className="text-white/30">
+                            <span style={{ color: "var(--text-muted)" }}>
+                              ·
+                            </span>
+                            <span style={{ color: "var(--text-muted)" }}>
                               {f.horas}h ×{" "}
                               {formatBRL(salarioPorHora + overheadPorHora)}/h
                             </span>
                           </div>
-                          <span className="text-white/50">
-                            {formatBRL(custoFuncionario)}
+                          <span style={{ color: "var(--text-secondary)" }}>
+                            {formatBRL(custoFunc)}
                           </span>
                         </div>
                       );
@@ -380,25 +483,40 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
                   </div>
                 )}
 
-                <div className="ml-6 flex items-center gap-6 pt-2 border-t border-white/5 text-xs">
-                  <span className="text-white/30">
-                    Custo base:{" "}
-                    <span className="text-white/50">
-                      {formatBRL(calc.custoBase)}
+                <div
+                  className="ml-6 flex items-center gap-6 pt-2 text-xs"
+                  style={{ borderTop: "1px solid var(--border)" }}
+                >
+                  {[
+                    {
+                      label: "Custo base",
+                      value: formatBRL(calc.custoBase),
+                      highlight: false,
+                    },
+                    {
+                      label: "Com margem",
+                      value: formatBRL(calc.comMargem),
+                      highlight: false,
+                    },
+                    {
+                      label: "Com imposto",
+                      value: formatBRL(calc.comImposto),
+                      highlight: true,
+                    },
+                  ].map((b) => (
+                    <span key={b.label} style={{ color: "var(--text-muted)" }}>
+                      {b.label}:{" "}
+                      <span
+                        style={{
+                          color: b.highlight
+                            ? "var(--primary)"
+                            : "var(--text-secondary)",
+                        }}
+                      >
+                        {b.value}
+                      </span>
                     </span>
-                  </span>
-                  <span className="text-white/30">
-                    Com margem:{" "}
-                    <span className="text-white/50">
-                      {formatBRL(calc.comMargem)}
-                    </span>
-                  </span>
-                  <span className="text-white/30">
-                    Com imposto:{" "}
-                    <span className="text-sky-300">
-                      {formatBRL(calc.comImposto)}
-                    </span>
-                  </span>
+                  ))}
                 </div>
               </div>
             );
@@ -407,25 +525,45 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
 
         {/* observações */}
         {orcamento.observacoes && (
-          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-5">
-            <p className="text-xs text-white/30 uppercase tracking-wider mb-2">
+          <div style={sectionStyle}>
+            <p
+              className="text-xs uppercase tracking-wider mb-2"
+              style={{ color: "var(--text-muted)" }}
+            >
               Observações
             </p>
-            <p className="text-sm text-white/50">{orcamento.observacoes}</p>
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+              {orcamento.observacoes}
+            </p>
           </div>
         )}
 
         {/* total */}
-        <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-5 flex items-center justify-between">
+        <div
+          className="p-5 rounded-xl flex items-center justify-between"
+          style={{
+            background: "var(--primary-bg)",
+            border: "1px solid var(--primary-border)",
+          }}
+        >
           <div>
-            <p className="text-xs text-white/30 uppercase tracking-wider">
+            <p
+              className="text-xs uppercase tracking-wider"
+              style={{ color: "var(--text-muted)" }}
+            >
               Total do orçamento
             </p>
-            <p className="text-2xl font-semibold text-sky-300 mt-1">
+            <p
+              className="text-2xl font-semibold mt-1"
+              style={{ color: "var(--primary)" }}
+            >
               {formatBRL(totalOrcamento)}
             </p>
           </div>
-          <div className="text-right text-sm text-white/30">
+          <div
+            className="text-right text-sm"
+            style={{ color: "var(--text-muted)" }}
+          >
             <p>
               Criado em{" "}
               {new Date(orcamento.created_at).toLocaleDateString("pt-BR")}

@@ -30,7 +30,6 @@ export default function GastosPage() {
   const { data: gastos, isLoading } = useListGastos();
   const { data: totalSocios = 0 } = useCountSocietarios();
   const { mutate: deleteGasto } = useDeleteGasto();
-
   const [gastoEditando, setGastoEditando] = useState<Gasto | null>(null);
 
   const totalMensal =
@@ -50,8 +49,13 @@ export default function GastosPage() {
       {/* cabeçalho */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Gastos</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <h1
+            className="text-xl font-semibold"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Gastos
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
             {gastos?.length ?? 0} gastos recorrentes cadastrados
           </p>
         </div>
@@ -70,12 +74,22 @@ export default function GastosPage() {
         ].map((card) => (
           <div
             key={card.label}
-            className="rounded-xl border border-white/10 bg-white/[0.02] p-4 flex flex-col gap-1"
+            className="rounded-xl p-4 flex flex-col gap-1"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border)",
+            }}
           >
-            <span className="text-xs text-white/30 uppercase tracking-wider">
+            <span
+              className="text-xs uppercase tracking-wider"
+              style={{ color: "var(--text-muted)" }}
+            >
               {card.label}
             </span>
-            <span className="text-xl font-semibold text-sky-300">
+            <span
+              className="text-xl font-semibold"
+              style={{ color: "var(--primary)" }}
+            >
               {card.value}
             </span>
           </div>
@@ -83,34 +97,37 @@ export default function GastosPage() {
       </div>
 
       {/* tabela */}
-      <div className="rounded-xl border border-white/10 overflow-hidden">
+      <div
+        className="rounded-xl overflow-hidden"
+        style={{ border: "1px solid var(--border)" }}
+      >
         <Table>
           <TableHeader>
-            <TableRow className="border-white/10 hover:bg-transparent bg-white/[0.02]">
-              <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                Nome
-              </TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                Categoria
-              </TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-white/30">
-                Recorrência
-              </TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-white/30 text-right">
-                Valor
-              </TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-white/30 text-right">
-                Mensal
-              </TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-white/30 text-right">
-                Anual
-              </TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-white/30 text-right">
-                Por sócio/mês
-              </TableHead>
-              <TableHead className="text-xs uppercase tracking-wider text-white/30 text-right">
-                Ações
-              </TableHead>
+            <TableRow
+              className="hover:bg-transparent"
+              style={{
+                borderColor: "var(--border)",
+                backgroundColor: "var(--bg-card-alt)",
+              }}
+            >
+              {[
+                "Nome",
+                "Categoria",
+                "Recorrência",
+                "Valor",
+                "Mensal",
+                "Anual",
+                "Por sócio/mês",
+                "Ações",
+              ].map((h, i) => (
+                <TableHead
+                  key={h}
+                  className={`text-xs uppercase tracking-wider ${i >= 3 ? "text-right" : ""}`}
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {h}
+                </TableHead>
+              ))}
             </TableRow>
           </TableHeader>
 
@@ -119,7 +136,13 @@ export default function GastosPage() {
               <TableRow className="border-0 hover:bg-transparent">
                 <TableCell colSpan={8} className="py-16 text-center">
                   <div className="flex justify-center">
-                    <div className="w-5 h-5 rounded-full border-2 border-sky-500/30 border-t-sky-400 animate-spin" />
+                    <div
+                      className="w-5 h-5 rounded-full border-2 animate-spin"
+                      style={{
+                        borderColor: "var(--primary-border)",
+                        borderTopColor: "var(--primary)",
+                      }}
+                    />
                   </div>
                 </TableCell>
               </TableRow>
@@ -140,55 +163,113 @@ export default function GastosPage() {
                 return (
                   <TableRow
                     key={gasto.id}
-                    className="border-white/5 hover:bg-white/[0.03] transition-colors"
+                    className="transition-colors"
+                    style={{ borderColor: "var(--border)" }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.backgroundColor =
+                        "var(--bg-hover)")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.backgroundColor = "transparent")
+                    }
                   >
                     <TableCell>
                       <div>
-                        <p className="text-sm text-white/80">{gasto.nome}</p>
+                        <p
+                          className="text-sm font-medium"
+                          style={{ color: "var(--text-primary)" }}
+                        >
+                          {gasto.nome}
+                        </p>
                         {gasto.descricao && (
-                          <p className="text-xs text-white/30 mt-0.5">
+                          <p
+                            className="text-xs mt-0.5"
+                            style={{ color: "var(--text-muted)" }}
+                          >
                             {gasto.descricao}
                           </p>
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-white/50">
+
+                    <TableCell
+                      className="text-sm"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {gasto.categoria ?? "—"}
                     </TableCell>
+
                     <TableCell>
                       <span
-                        className={`text-xs px-2 py-1 rounded-full border ${
+                        className="text-xs px-2 py-1 rounded-full"
+                        style={
                           gasto.recorrencia === "mensal"
-                            ? "bg-sky-500/10 border-sky-500/30 text-sky-300"
-                            : "bg-purple-500/10 border-purple-500/30 text-purple-300"
-                        }`}
+                            ? {
+                                background: "var(--primary-bg)",
+                                border: "1px solid var(--primary-border)",
+                                color: "var(--primary)",
+                              }
+                            : {
+                                background: "var(--secondary-bg)",
+                                border: "1px solid var(--secondary-border)",
+                                color: "var(--secondary)",
+                              }
+                        }
                       >
                         {gasto.recorrencia}
                       </span>
                     </TableCell>
-                    <TableCell className="text-sm text-white/80 text-right">
+
+                    <TableCell
+                      className="text-sm text-right font-medium"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       {formatBRL(gasto.valor)}
                     </TableCell>
-                    <TableCell className="text-sm text-white/50 text-right">
+                    <TableCell
+                      className="text-sm text-right"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {formatBRL(mensal)}
                     </TableCell>
-                    <TableCell className="text-sm text-white/50 text-right">
+                    <TableCell
+                      className="text-sm text-right"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
                       {formatBRL(anual)}
                     </TableCell>
-                    <TableCell className="text-sm text-sky-300 text-right">
+                    <TableCell
+                      className="text-sm text-right font-medium"
+                      style={{ color: "var(--primary)" }}
+                    >
                       {formatBRL(porSocio)}
                     </TableCell>
+
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => setGastoEditando(gasto)}
-                          className="p-1.5 text-white/20 hover:text-sky-400 transition-colors"
+                          className="p-1.5 rounded transition-colors"
+                          style={{ color: "var(--text-faint)" }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.color = "var(--secondary)")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.color = "var(--text-faint)")
+                          }
                         >
                           <PencilIcon className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => deleteGasto(gasto.id)}
-                          className="p-1.5 text-white/20 hover:text-red-400 transition-colors"
+                          className="p-1.5 rounded transition-colors"
+                          style={{ color: "var(--text-faint)" }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.color = "var(--error)")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.color = "var(--text-faint)")
+                          }
                         >
                           <Trash2Icon className="w-3.5 h-3.5" />
                         </button>
@@ -202,8 +283,14 @@ export default function GastosPage() {
               <TableRow className="border-0 hover:bg-transparent">
                 <TableCell colSpan={8} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
-                    <DollarSignIcon className="w-8 h-8 text-white/10" />
-                    <p className="text-sm text-white/30">
+                    <DollarSignIcon
+                      className="w-8 h-8"
+                      style={{ color: "var(--text-faint)" }}
+                    />
+                    <p
+                      className="text-sm"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       Nenhum gasto foi cadastrado
                     </p>
                   </div>
@@ -214,7 +301,6 @@ export default function GastosPage() {
         </Table>
       </div>
 
-      {/* dialog de edição */}
       {gastoEditando && (
         <EditGastoDialog
           gasto={gastoEditando}

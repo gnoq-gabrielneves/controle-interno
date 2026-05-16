@@ -1,4 +1,3 @@
-// src/app/(private)/clientes/[id]/page.tsx
 "use client";
 
 import { Input } from "@/components/ui/input";
@@ -44,7 +43,13 @@ export default function ClientePage() {
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="w-5 h-5 rounded-full border-2 border-sky-500/30 border-t-sky-400 animate-spin" />
+        <div
+          className="w-5 h-5 rounded-full border-2 animate-spin"
+          style={{
+            borderColor: "var(--primary-border)",
+            borderTopColor: "var(--primary)",
+          }}
+        />
       </div>
     );
   }
@@ -117,23 +122,49 @@ function ClienteForm({ cliente }: { cliente: Cliente }) {
     });
   }
 
-  const inputClass =
-    "bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:border-sky-500/50";
-  const labelClass = "text-white/60 text-xs uppercase tracking-wider";
+  const inputStyle = {
+    background: "var(--bg-card)",
+    borderColor: "var(--border)",
+    color: "var(--text-primary)",
+  };
+
+  const sectionStyle = {
+    background: "var(--bg-card)",
+    border: "1px solid var(--border)",
+    borderRadius: 12,
+    padding: 24,
+  };
+
+  const labelClass = "text-xs uppercase tracking-wider font-medium";
 
   return (
-    <div className="p-8 max-w-3xl flex flex-col gap-6">
+    <div className="p-8 w-full flex flex-col gap-6">
       {/* cabeçalho */}
       <div className="flex items-center gap-4">
         <button
           onClick={() => router.back()}
-          className="p-2 rounded-lg border border-white/10 hover:bg-white/5 transition-all text-white/50 hover:text-white/80"
+          className="p-2 rounded-lg transition-all"
+          style={{
+            border: "1px solid var(--border)",
+            color: "var(--text-muted)",
+          }}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.backgroundColor = "var(--bg-hover)")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.backgroundColor = "transparent")
+          }
         >
           <ArrowLeftIcon className="w-4 h-4" />
         </button>
         <div>
-          <h1 className="text-xl font-semibold">{cliente.nome}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <h1
+            className="text-xl font-semibold"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {cliente.nome}
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
             {cliente.cpf_cnpj ?? "Sem CPF/CNPJ"}
           </p>
         </div>
@@ -141,116 +172,179 @@ function ClienteForm({ cliente }: { cliente: Cliente }) {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         {/* dados principais */}
-        <div className="rounded-xl border border-white/10 bg-white/2 p-6 flex flex-col gap-4">
-          <p className="text-xs text-white/30 uppercase tracking-wider">
+        <div style={sectionStyle} className="flex flex-col gap-4">
+          <p
+            className="text-xs uppercase tracking-wider"
+            style={{ color: "var(--text-muted)" }}
+          >
             Dados principais
           </p>
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5 col-span-2">
-              <Label className={labelClass}>Nome</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Nome
+              </Label>
               <Input
                 value={form.nome}
                 onChange={(e) => handleChange("nome", e.target.value)}
                 required
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label className={labelClass}>CPF / CNPJ</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                CPF / CNPJ
+              </Label>
               <Input
                 value={form.cpf_cnpj}
                 onChange={(e) => handleChange("cpf_cnpj", e.target.value)}
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label className={labelClass}>Telefone</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Telefone
+              </Label>
               <Input
                 value={form.telefone}
                 onChange={(e) => handleChange("telefone", e.target.value)}
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
             <div className="flex flex-col gap-1.5 col-span-2">
-              <Label className={labelClass}>Email</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Email
+              </Label>
               <Input
                 type="email"
                 value={form.email}
                 onChange={(e) => handleChange("email", e.target.value)}
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
           </div>
         </div>
 
         {/* endereço */}
-        <div className="rounded-xl border border-white/10 bg-white/2 p-6 flex flex-col gap-4">
-          <p className="text-xs text-white/30 uppercase tracking-wider">
+        <div style={sectionStyle} className="flex flex-col gap-4">
+          <p
+            className="text-xs uppercase tracking-wider"
+            style={{ color: "var(--text-muted)" }}
+          >
             Endereço
           </p>
           <div className="grid grid-cols-3 gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label className={labelClass}>CEP</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                CEP
+              </Label>
               <Input
                 value={form.cep}
                 onChange={(e) => handleChange("cep", e.target.value)}
                 onBlur={handleCepBlur}
-                className={inputClass}
+                style={inputStyle}
               />
               {buscandoCep && (
-                <p className="text-xs text-sky-400">Buscando...</p>
+                <p className="text-xs" style={{ color: "var(--secondary)" }}>
+                  Buscando...
+                </p>
               )}
             </div>
             <div className="flex flex-col gap-1.5 col-span-2">
-              <Label className={labelClass}>Logradouro</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Logradouro
+              </Label>
               <Input
                 value={form.logradouro}
                 onChange={(e) => handleChange("logradouro", e.target.value)}
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label className={labelClass}>Número</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Número
+              </Label>
               <Input
                 value={form.numero}
                 onChange={(e) => handleChange("numero", e.target.value)}
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label className={labelClass}>Complemento</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Complemento
+              </Label>
               <Input
                 value={form.complemento}
                 onChange={(e) => handleChange("complemento", e.target.value)}
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label className={labelClass}>Bairro</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Bairro
+              </Label>
               <Input
                 value={form.bairro}
                 onChange={(e) => handleChange("bairro", e.target.value)}
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label className={labelClass}>Cidade</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Cidade
+              </Label>
               <Input
                 value={form.cidade}
                 onChange={(e) => handleChange("cidade", e.target.value)}
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label className={labelClass}>Estado</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Estado
+              </Label>
               <Input
                 value={form.estado}
                 onChange={(e) => handleChange("estado", e.target.value)}
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
           </div>
@@ -259,7 +353,18 @@ function ClienteForm({ cliente }: { cliente: Cliente }) {
         <button
           type="submit"
           disabled={isPending}
-          className="w-full py-2.5 rounded-lg border border-sky-500/30 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 text-sm transition-all disabled:opacity-50"
+          className="w-full py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+          style={{
+            background: "var(--primary)",
+            color: "#ffffff",
+            border: "1px solid var(--primary)",
+          }}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.background = "var(--primary-light)")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.background = "var(--primary)")
+          }
         >
           {isPending ? "Salvando..." : "Salvar alterações"}
         </button>

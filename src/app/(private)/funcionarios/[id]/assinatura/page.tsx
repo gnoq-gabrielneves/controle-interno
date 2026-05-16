@@ -1,4 +1,5 @@
 "use client";
+
 import { AssinaturaForm } from "@/components/AssinaturaForm/AssinaturaForm";
 import { useGetFuncionario } from "@/hooks/use-funcionarios";
 import { FuncionarioAssinatura } from "@/types/assinatura-types";
@@ -11,7 +12,13 @@ export default function AssinaturaPage() {
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="w-5 h-5 rounded-full border-2 border-sky-500/30 border-t-sky-400 animate-spin" />
+        <div
+          className="w-5 h-5 rounded-full border-2 animate-spin"
+          style={{
+            borderColor: "var(--primary-border)",
+            borderTopColor: "var(--primary)",
+          }}
+        />
       </div>
     );
   }
