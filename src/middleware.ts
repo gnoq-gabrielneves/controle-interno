@@ -13,14 +13,14 @@ export async function middleware(request: NextRequest) {
   );
 
   const isPublicRoute =
-    pathname.startsWith("/") ||
+    pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
     pathname === "/";
 
   // Não logado tentando acessar rota privada → login
   if (!user && !isPublicRoute) {
     console.log("❌ sem user, redirecionando pra /login");
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   // Já logado tentando acessar login → home
