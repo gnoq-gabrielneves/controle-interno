@@ -1,4 +1,3 @@
-// src/components/NewGasto/NewGasto.tsx
 "use client";
 
 import { useCreateGasto } from "@/hooks/use-gastos";
@@ -14,6 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+
+const formatBRL = (value: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+    value,
+  );
 
 export function NewGasto() {
   const { mutate: createGasto, isPending } = useCreateGasto();
@@ -31,7 +35,6 @@ export function NewGasto() {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  // calcula o valor total automaticamente
   const valorTotal =
     parseFloat(form.valor_unitario || "0") * parseInt(form.quantidade || "1");
 
@@ -63,52 +66,87 @@ export function NewGasto() {
     );
   }
 
-  const inputClass =
-    "bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:border-sky-500/50";
-  const labelClass = "text-white/60 text-xs uppercase tracking-wider";
+  const inputStyle = {
+    background: "var(--bg-base)",
+    borderColor: "var(--border)",
+    color: "var(--text-primary)",
+  };
+  const labelClass = "text-xs uppercase tracking-wider font-medium";
 
   return (
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-sky-500/30 bg-sky-500/10 text-sky-300 text-sm hover:bg-sky-500/20 transition-all"
+        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+        style={{
+          background: "var(--primary)",
+          color: "#ffffff",
+          border: "1px solid var(--primary)",
+        }}
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.background = "var(--primary-light)")
+        }
+        onMouseLeave={(e) =>
+          (e.currentTarget.style.background = "var(--primary)")
+        }
       >
         <PlusIcon className="w-4 h-4" />
         Novo gasto
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-[#0d0d1a] border border-white/10 text-white">
+        <DialogContent
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+          }}
+        >
           <DialogHeader>
-            <DialogTitle className="text-white">Novo gasto</DialogTitle>
+            <DialogTitle style={{ color: "var(--text-primary)" }}>
+              Novo gasto
+            </DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-2">
             <div className="flex flex-col gap-1.5">
-              <Label className={labelClass}>Nome</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Nome
+              </Label>
               <Input
                 placeholder="Ex: Email corporativo"
                 value={form.nome}
                 onChange={(e) => handleChange("nome", e.target.value)}
                 required
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label className={labelClass}>Descrição</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Descrição
+              </Label>
               <Input
                 placeholder="Opcional"
                 value={form.descricao}
                 onChange={(e) => handleChange("descricao", e.target.value)}
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
 
-            {/* valor unitário + quantidade */}
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
-                <Label className={labelClass}>Valor unitário</Label>
+                <Label
+                  className={labelClass}
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Valor unitário
+                </Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -118,11 +156,16 @@ export function NewGasto() {
                     handleChange("valor_unitario", e.target.value)
                   }
                   required
-                  className={inputClass}
+                  style={inputStyle}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label className={labelClass}>Quantidade</Label>
+                <Label
+                  className={labelClass}
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Quantidade
+                </Label>
                 <Input
                   type="number"
                   min="1"
@@ -131,54 +174,86 @@ export function NewGasto() {
                   value={form.quantidade}
                   onChange={(e) => handleChange("quantidade", e.target.value)}
                   required
-                  className={inputClass}
+                  style={inputStyle}
                 />
               </div>
             </div>
 
-            {/* preview do total calculado */}
             {parseFloat(form.valor_unitario) > 0 && (
-              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-sky-500/5 border border-sky-500/20">
-                <span className="text-xs text-white/40">
+              <div
+                className="flex items-center justify-between px-3 py-2 rounded-lg"
+                style={{
+                  background: "var(--primary-bg)",
+                  border: "1px solid var(--primary-border)",
+                }}
+              >
+                <span
+                  className="text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
                   {form.quantidade}x{" "}
-                  {new Intl.NumberFormat("pt-BR", {
-                    style: "currency",
-                    currency: "BRL",
-                  }).format(parseFloat(form.valor_unitario || "0"))}
+                  {formatBRL(parseFloat(form.valor_unitario || "0"))}
                 </span>
-                <span className="text-sm font-medium text-sky-300">
-                  ={" "}
-                  {new Intl.NumberFormat("pt-BR", {
-                    style: "currency",
-                    currency: "BRL",
-                  }).format(valorTotal)}
+                <span
+                  className="text-sm font-medium"
+                  style={{ color: "var(--primary)" }}
+                >
+                  = {formatBRL(valorTotal)}
                 </span>
               </div>
             )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
-                <Label className={labelClass}>Recorrência</Label>
+                <Label
+                  className={labelClass}
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Recorrência
+                </Label>
                 <Select
                   value={form.recorrencia}
                   onValueChange={(v) => v && handleChange("recorrencia", v)}
                 >
-                  <SelectTrigger className="bg-white/5 w-full border-white/10 text-white">
+                  <SelectTrigger
+                    className="w-full"
+                    style={{ ...inputStyle, height: 36 }}
+                  >
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#0d0d1a] border-white/10 text-white">
-                    <SelectItem value="mensal">Mensal</SelectItem>
-                    <SelectItem value="anual">Anual</SelectItem>
+                  <SelectContent
+                    style={{
+                      background: "var(--bg-card)",
+                      border: "1px solid var(--border)",
+                    }}
+                  >
+                    <SelectItem
+                      value="mensal"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      Mensal
+                    </SelectItem>
+                    <SelectItem
+                      value="anual"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      Anual
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label className={labelClass}>Categoria</Label>
+                <Label
+                  className={labelClass}
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Categoria
+                </Label>
                 <Input
                   placeholder="Ex: Infraestrutura"
                   value={form.categoria}
                   onChange={(e) => handleChange("categoria", e.target.value)}
-                  className={inputClass}
+                  style={inputStyle}
                 />
               </div>
             </div>
@@ -186,7 +261,18 @@ export function NewGasto() {
             <button
               type="submit"
               disabled={isPending}
-              className="w-full mt-2 py-2 rounded-lg border border-sky-500/30 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 text-sm transition-all disabled:opacity-50"
+              className="w-full mt-2 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+              style={{
+                background: "var(--primary)",
+                color: "#ffffff",
+                border: "1px solid var(--primary)",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "var(--primary-light)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "var(--primary)")
+              }
             >
               {isPending ? "Criando..." : "Criar gasto"}
             </button>

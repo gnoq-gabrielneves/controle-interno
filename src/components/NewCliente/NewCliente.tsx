@@ -1,4 +1,5 @@
 "use client";
+
 import { useCreateCliente } from "@/hooks/use-clientes";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
@@ -92,156 +93,243 @@ export function NewCliente() {
     );
   }
 
-  const inputClass =
-    "bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:border-sky-500/50";
-  const labelClass = "text-white/60 text-xs uppercase tracking-wider";
+  const inputStyle = {
+    background: "var(--bg-base)",
+    borderColor: "var(--border)",
+    color: "var(--text-primary)",
+  };
+  const labelClass = "text-xs uppercase tracking-wider font-medium";
 
   return (
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-sky-500/30 bg-sky-500/10 text-sky-300 text-sm hover:bg-sky-500/20 transition-all"
+        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+        style={{
+          background: "var(--primary)",
+          color: "#ffffff",
+          border: "1px solid var(--primary)",
+        }}
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.background = "var(--primary-light)")
+        }
+        onMouseLeave={(e) =>
+          (e.currentTarget.style.background = "var(--primary)")
+        }
       >
         <PlusIcon className="w-4 h-4" />
         Novo cliente
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-[#0d0d1a] border border-white/10 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          className="max-w-2xl max-h-[90vh] overflow-y-auto"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+          }}
+        >
           <DialogHeader>
-            <DialogTitle className="text-white">Novo cliente</DialogTitle>
+            <DialogTitle style={{ color: "var(--text-primary)" }}>
+              Novo cliente
+            </DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5 mt-2">
             {/* dados principais */}
-            <div>
-              <p className="text-xs text-white/30 uppercase tracking-wider mb-3">
+            <div className="flex flex-col gap-3">
+              <p
+                className="text-xs uppercase tracking-wider"
+                style={{ color: "var(--text-muted)" }}
+              >
                 Dados principais
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5 col-span-2">
-                  <Label className={labelClass}>Nome</Label>
+                  <Label
+                    className={labelClass}
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Nome
+                  </Label>
                   <Input
                     placeholder="Nome completo ou razão social"
                     value={form.nome}
                     onChange={(e) => handleChange("nome", e.target.value)}
                     required
-                    className={inputClass}
+                    style={inputStyle}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label className={labelClass}>CPF / CNPJ</Label>
+                  <Label
+                    className={labelClass}
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    CPF / CNPJ
+                  </Label>
                   <Input
                     placeholder="000.000.000-00"
                     value={form.cpf_cnpj}
                     onChange={(e) => handleChange("cpf_cnpj", e.target.value)}
-                    className={inputClass}
+                    style={inputStyle}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label className={labelClass}>Telefone</Label>
+                  <Label
+                    className={labelClass}
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Telefone
+                  </Label>
                   <Input
                     placeholder="(00) 00000-0000"
                     value={form.telefone}
                     onChange={(e) => handleChange("telefone", e.target.value)}
-                    className={inputClass}
+                    style={inputStyle}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5 col-span-2">
-                  <Label className={labelClass}>Email</Label>
+                  <Label
+                    className={labelClass}
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Email
+                  </Label>
                   <Input
                     type="email"
                     placeholder="email@exemplo.com"
                     value={form.email}
                     onChange={(e) => handleChange("email", e.target.value)}
-                    className={inputClass}
+                    style={inputStyle}
                   />
                 </div>
               </div>
             </div>
 
+            {/* separador */}
+            <div style={{ borderTop: "1px solid var(--border)" }} />
+
             {/* endereço */}
-            <div>
-              <p className="text-xs text-white/30 uppercase tracking-wider mb-3">
+            <div className="flex flex-col gap-3">
+              <p
+                className="text-xs uppercase tracking-wider"
+                style={{ color: "var(--text-muted)" }}
+              >
                 Endereço
               </p>
-              <div className="flex flex-col gap-3">
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <Label className={labelClass}>CEP</Label>
-                    <Input
-                      placeholder="00000-000"
-                      value={form.cep}
-                      onChange={(e) => handleChange("cep", e.target.value)}
-                      onBlur={handleCepBlur}
-                      className={inputClass}
-                    />
-                    {buscandoCep && (
-                      <p className="text-xs text-sky-400">Buscando...</p>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-1.5 col-span-2">
-                    <Label className={labelClass}>Logradouro</Label>
-                    <Input
-                      placeholder="Rua, Avenida..."
-                      value={form.logradouro}
-                      onChange={(e) =>
-                        handleChange("logradouro", e.target.value)
-                      }
-                      className={inputClass}
-                    />
-                  </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label
+                    className={labelClass}
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    CEP
+                  </Label>
+                  <Input
+                    placeholder="00000-000"
+                    value={form.cep}
+                    onChange={(e) => handleChange("cep", e.target.value)}
+                    onBlur={handleCepBlur}
+                    style={inputStyle}
+                  />
+                  {buscandoCep && (
+                    <p
+                      className="text-xs"
+                      style={{ color: "var(--secondary)" }}
+                    >
+                      Buscando...
+                    </p>
+                  )}
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <Label className={labelClass}>Número</Label>
-                    <Input
-                      placeholder="Ex: 123"
-                      value={form.numero}
-                      onChange={(e) => handleChange("numero", e.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className={labelClass}>Complemento</Label>
-                    <Input
-                      placeholder="Apto, Bloco... (opcional)"
-                      value={form.complemento}
-                      onChange={(e) =>
-                        handleChange("complemento", e.target.value)
-                      }
-                      className={inputClass}
-                    />
-                  </div>
+                <div className="flex flex-col gap-1.5 col-span-2">
+                  <Label
+                    className={labelClass}
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Logradouro
+                  </Label>
+                  <Input
+                    placeholder="Rua, Avenida..."
+                    value={form.logradouro}
+                    onChange={(e) => handleChange("logradouro", e.target.value)}
+                    style={inputStyle}
+                  />
                 </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <Label className={labelClass}>Bairro</Label>
-                    <Input
-                      placeholder="Bairro"
-                      value={form.bairro}
-                      onChange={(e) => handleChange("bairro", e.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className={labelClass}>Cidade</Label>
-                    <Input
-                      placeholder="Cidade"
-                      value={form.cidade}
-                      onChange={(e) => handleChange("cidade", e.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label className={labelClass}>Estado</Label>
-                    <Input
-                      placeholder="UF"
-                      value={form.estado}
-                      onChange={(e) => handleChange("estado", e.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label
+                    className={labelClass}
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Número
+                  </Label>
+                  <Input
+                    placeholder="Ex: 123"
+                    value={form.numero}
+                    onChange={(e) => handleChange("numero", e.target.value)}
+                    style={inputStyle}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label
+                    className={labelClass}
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Complemento
+                  </Label>
+                  <Input
+                    placeholder="Apto, Bloco... (opcional)"
+                    value={form.complemento}
+                    onChange={(e) =>
+                      handleChange("complemento", e.target.value)
+                    }
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label
+                    className={labelClass}
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Bairro
+                  </Label>
+                  <Input
+                    placeholder="Bairro"
+                    value={form.bairro}
+                    onChange={(e) => handleChange("bairro", e.target.value)}
+                    style={inputStyle}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label
+                    className={labelClass}
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Cidade
+                  </Label>
+                  <Input
+                    placeholder="Cidade"
+                    value={form.cidade}
+                    onChange={(e) => handleChange("cidade", e.target.value)}
+                    style={inputStyle}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label
+                    className={labelClass}
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Estado
+                  </Label>
+                  <Input
+                    placeholder="UF"
+                    value={form.estado}
+                    onChange={(e) => handleChange("estado", e.target.value)}
+                    style={inputStyle}
+                  />
                 </div>
               </div>
             </div>
@@ -249,7 +337,18 @@ export function NewCliente() {
             <button
               type="submit"
               disabled={isPending}
-              className="w-full mt-2 py-2 rounded-lg border border-sky-500/30 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 text-sm transition-all disabled:opacity-50"
+              className="w-full mt-2 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+              style={{
+                background: "var(--primary)",
+                color: "#ffffff",
+                border: "1px solid var(--primary)",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "var(--primary-light)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "var(--primary)")
+              }
             >
               {isPending ? "Cadastrando..." : "Cadastrar cliente"}
             </button>
