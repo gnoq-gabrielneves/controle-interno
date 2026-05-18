@@ -1,5 +1,4 @@
 "use client";
-
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -9,11 +8,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useListClientes } from "@/hooks/use-clientes";
-import { useListFuncionarios } from "@/hooks/use-funcionarios";
-import { useCountSocietarios, useListGastos } from "@/hooks/use-gastos";
-import { useCreateOrcamento } from "@/hooks/use-orcamentos";
 import {
+  calcularOrcamento,
+  formatBRL,
+  formatPct,
+} from "@/helpers/calculo-orcamento";
+import { useListClientes } from "@/hooks/use-clientes";
+import { useGetConfiguracoes } from "@/hooks/use-configuracoes";
+import { useListFuncionarios } from "@/hooks/use-funcionarios";
+import { useCreateOrcamento } from "@/hooks/use-orcamentos";
+import { OrcamentoTipo } from "@/types/orcamentos-types";
+import {
+  AlertTriangleIcon,
   ArrowLeftIcon,
   PlusIcon,
   Trash2Icon,
@@ -22,69 +28,141 @@ import {
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-type ItemFuncionario = { funcionario_id: number; horas: number };
+/**
+ * Estrutura local — UI mexe nesses estados, no save converte pro shape do banco.
+ *
+ * Cada funcionário alocado guarda só o id e os meses. O salário (snapshot)
+ * é resolvido no momento do save lendo do cadastro atual — não fica na UI
+ * porque o usuário não edita salário aqui.
+ */
+type EquipeMembro = { funcionario_id: number; meses: number };
+
 type Item = {
   id: string;
   descricao: string;
   descricao_detalhada: string;
-  funcionarios: ItemFuncionario[];
+  valor_manual: string; // string pra permitir input vazio; convertido no save
+  equipe: EquipeMembro[]; // só usado quando tipo === "por_modulo"
 };
 
-function formatBRL(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(value);
-}
+// labels legíveis dos tipos de orçamento (usado pra renderizar o valor selecionado)
+const TIPO_LABELS: Record<OrcamentoTipo, string> = {
+  projeto_fechado: "Projeto fechado (preço único)",
+  por_modulo: "Por módulo (preço por entrega)",
+};
 
 export default function NovoOrcamentoPage() {
   const router = useRouter();
   const { mutate: createOrcamento, isPending } = useCreateOrcamento();
   const { data: clientes } = useListClientes();
   const { data: funcionarios } = useListFuncionarios();
-  const { data: gastos } = useListGastos();
-  useCountSocietarios();
+  const { data: config } = useGetConfiguracoes();
 
+  // dados básicos
   const [titulo, setTitulo] = useState("");
   const [clienteId, setClienteId] = useState("");
-  const [margemLucro, setMargemLucro] = useState(10);
-  const [aliquotaImposto, setAliquotaImposto] = useState(6);
+  const [tipo, setTipo] = useState<OrcamentoTipo>("projeto_fechado");
   const [validadeDias, setValidadeDias] = useState(30);
   const [observacoes, setObservacoes] = useState("");
+
+  // parâmetros do cálculo
+  const [margemLucro, setMargemLucro] = useState(40); // %
+  const [aliquotaImposto, setAliquotaImposto] = useState(6); // %
+
+  // buffer: null = ainda usa o padrão das configurações; número = usuário sobrescreveu
+  const [bufferAtrasoOverride, setBufferAtrasoOverride] = useState<
+    number | null
+  >(null);
+
+  // derivado em vez de estado sincronizado — sem useEffect.
+  // ordem: override do usuário > padrão da config > fallback 20%
+  const bufferAtraso =
+    bufferAtrasoOverride ??
+    (config?.buffer_atraso_padrao != null
+      ? config.buffer_atraso_padrao * 100
+      : 20);
+
+  // equipe global (usada quando tipo === "projeto_fechado")
+  const [equipeGlobal, setEquipeGlobal] = useState<EquipeMembro[]>([]);
+
+  // itens (em projeto_fechado: só descrição; em por_modulo: + equipe + valor_manual)
   const [itens, setItens] = useState<Item[]>([
     {
       id: crypto.randomUUID(),
       descricao: "",
       descricao_detalhada: "",
-      funcionarios: [],
+      valor_manual: "",
+      equipe: [],
     },
   ]);
 
-  const overheadPorHora = useMemo(() => {
-    const totalGastosMensal =
-      gastos?.reduce(
-        (acc, g) => acc + (g.recorrencia === "mensal" ? g.valor : g.valor / 12),
-        0,
-      ) ?? 0;
-    return totalGastosMensal / ((funcionarios?.length ?? 1) * 220);
-  }, [gastos, funcionarios]);
-
-  function calcularItem(item: Item) {
-    const custoBase = item.funcionarios.reduce((acc, f) => {
-      const func = funcionarios?.find((fn) => fn.id === f.funcionario_id);
-      if (!func) return acc;
-      return acc + f.horas * ((func.salario ?? 0) / 220 + overheadPorHora);
-    }, 0);
-    const comMargem = custoBase * (1 + margemLucro / 100);
-    const comImposto = comMargem * (1 + aliquotaImposto / 100);
-    return { custoBase, comMargem, comImposto };
+  // helper: pega salário atual do cadastro
+  function getSalario(funcionarioId: number): number {
+    const f = funcionarios?.find((fn) => fn.id === funcionarioId);
+    return f?.salario ?? 0;
   }
 
-  const totalOrcamento = useMemo(
-    () => itens.reduce((acc, item) => acc + calcularItem(item).comImposto, 0),
-    [itens, margemLucro, aliquotaImposto, funcionarios, overheadPorHora],
-  );
+  // helper: pega cliente pelo id (pra renderizar o nome no SelectValue)
+  const clienteSelecionado = clientes?.find((c) => c.id === clienteId);
 
+  // monta o input do helper de cálculo
+  const calculo = useMemo(() => {
+    // resolve a lista de funcionários alocados conforme o tipo
+    const alocacoes =
+      tipo === "projeto_fechado"
+        ? equipeGlobal
+        : itens.flatMap((i) => i.equipe);
+
+    const funcionariosCalc = alocacoes
+      .filter((a) => a.funcionario_id > 0)
+      .map((a) => ({
+        salario: getSalario(a.funcionario_id),
+        meses: a.meses,
+      }));
+
+    const itensCalc =
+      tipo === "por_modulo"
+        ? itens.map((i) => ({
+            valor: i.valor_manual.trim() === "" ? null : Number(i.valor_manual),
+          }))
+        : undefined;
+
+    return calcularOrcamento({
+      funcionarios: funcionariosCalc,
+      bufferAtraso: bufferAtraso / 100,
+      margemLucro: margemLucro / 100,
+      aliquotaImposto: aliquotaImposto / 100,
+      itens: itensCalc,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    tipo,
+    equipeGlobal,
+    itens,
+    bufferAtraso,
+    margemLucro,
+    aliquotaImposto,
+    funcionarios,
+  ]);
+
+  // --- mutators de equipe global ---
+  function addMembroGlobal() {
+    setEquipeGlobal((prev) => [...prev, { funcionario_id: 0, meses: 1 }]);
+  }
+  function removeMembroGlobal(index: number) {
+    setEquipeGlobal((prev) => prev.filter((_, i) => i !== index));
+  }
+  function updateMembroGlobal(
+    index: number,
+    field: keyof EquipeMembro,
+    value: number,
+  ) {
+    setEquipeGlobal((prev) =>
+      prev.map((m, i) => (i === index ? { ...m, [field]: value } : m)),
+    );
+  }
+
+  // --- mutators de itens ---
   function addItem() {
     setItens((prev) => [
       ...prev,
@@ -92,59 +170,46 @@ export default function NovoOrcamentoPage() {
         id: crypto.randomUUID(),
         descricao: "",
         descricao_detalhada: "",
-        funcionarios: [],
+        valor_manual: "",
+        equipe: [],
       },
     ]);
   }
   function removeItem(id: string) {
     setItens((prev) => prev.filter((item) => item.id !== id));
   }
-  function updateItemDescricao(id: string, descricao: string) {
+  function updateItem(id: string, patch: Partial<Item>) {
     setItens((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, descricao } : item)),
+      prev.map((item) => (item.id === id ? { ...item, ...patch } : item)),
     );
   }
-  function updateItemDescricaoDetalhada(
-    id: string,
-    descricao_detalhada: string,
-  ) {
-    setItens((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, descricao_detalhada } : item,
-      ),
-    );
-  }
-  function addFuncionarioToItem(itemId: string) {
+
+  // --- mutators de equipe POR ITEM (por_modulo) ---
+  function addMembroItem(itemId: string) {
     setItens((prev) =>
       prev.map((item) =>
         item.id === itemId
           ? {
               ...item,
-              funcionarios: [
-                ...item.funcionarios,
-                { funcionario_id: 0, horas: 1 },
-              ],
+              equipe: [...item.equipe, { funcionario_id: 0, meses: 1 }],
             }
           : item,
       ),
     );
   }
-  function removeFuncionarioFromItem(itemId: string, index: number) {
+  function removeMembroItem(itemId: string, index: number) {
     setItens((prev) =>
       prev.map((item) =>
         item.id === itemId
-          ? {
-              ...item,
-              funcionarios: item.funcionarios.filter((_, i) => i !== index),
-            }
+          ? { ...item, equipe: item.equipe.filter((_, i) => i !== index) }
           : item,
       ),
     );
   }
-  function updateFuncionarioInItem(
+  function updateMembroItem(
     itemId: string,
     index: number,
-    field: keyof ItemFuncionario,
+    field: keyof EquipeMembro,
     value: number,
   ) {
     setItens((prev) =>
@@ -152,8 +217,8 @@ export default function NovoOrcamentoPage() {
         item.id === itemId
           ? {
               ...item,
-              funcionarios: item.funcionarios.map((f, i) =>
-                i === index ? { ...f, [field]: value } : f,
+              equipe: item.equipe.map((m, i) =>
+                i === index ? { ...m, [field]: value } : m,
               ),
             }
           : item,
@@ -161,40 +226,114 @@ export default function NovoOrcamentoPage() {
     );
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  // --- submit ---
+  function handleSubmit() {
+    if (!titulo || !clienteId) {
+      return;
+    }
+
+    // monta os itens conforme o tipo
+    const itensInput = itens.map((item) => {
+      const equipeDoItem =
+        tipo === "por_modulo"
+          ? item.equipe
+          : // em projeto_fechado: a equipe global vai duplicada no primeiro item.
+            // alternativa: criar um item "fantasma" só pra equipe. Optei por colar
+            // no primeiro item porque mantém a tabela do banco simples.
+            itens.indexOf(item) === 0
+            ? equipeGlobal
+            : [];
+
+      return {
+        descricao: item.descricao,
+        descricao_detalhada: item.descricao_detalhada || null,
+        valor_manual:
+          tipo === "por_modulo" && item.valor_manual.trim() !== ""
+            ? Number(item.valor_manual)
+            : null,
+        funcionarios: equipeDoItem
+          .filter((m) => m.funcionario_id > 0)
+          .map((m) => ({
+            funcionario: m.funcionario_id,
+            meses_alocados: m.meses,
+            salario_snapshot: getSalario(m.funcionario_id),
+          })),
+      };
+    });
+
     createOrcamento(
       {
         titulo,
         cliente: clienteId,
+        tipo,
         margem_lucro: margemLucro / 100,
         aliquota_imposto: aliquotaImposto / 100,
+        buffer_atraso: bufferAtraso / 100,
         validade_dias: validadeDias,
         observacoes: observacoes || undefined,
-        itens: itens.map((item) => ({
-          descricao: item.descricao,
-          descricao_detalhada: item.descricao_detalhada || undefined,
-          funcionarios: item.funcionarios
-            .filter((f) => f.funcionario_id !== 0)
-            .map((f) => ({ funcionario: f.funcionario_id, horas: f.horas })),
-        })),
+        itens: itensInput,
       },
-      { onSuccess: () => router.push("/orcamentos") },
+      {
+        onSuccess: () => router.push("/orcamentos"),
+      },
     );
   }
+
+  // --- estilos compartilhados ---
+  const sectionStyle = {
+    background: "var(--bg-card)",
+    border: "1px solid var(--border)",
+    borderRadius: 12,
+    padding: 20,
+  } as const;
 
   const inputStyle = {
     background: "var(--bg-card)",
     borderColor: "var(--border)",
     color: "var(--text-primary)",
   };
+
   const labelClass = "text-xs uppercase tracking-wider font-medium";
-  const sectionStyle = {
-    background: "var(--bg-card)",
-    border: "1px solid var(--border)",
-    borderRadius: 12,
-    padding: 24,
-  };
+
+  // --- breakdown lines pra calculadora ---
+  const breakdownLines = [
+    {
+      label: "Custo da equipe",
+      value: formatBRL(calculo.custoEquipe),
+      muted: false,
+      operator: "",
+    },
+    {
+      label: `Buffer de atraso (${formatPct(bufferAtraso / 100)})`,
+      value: formatBRL(calculo.valorBuffer),
+      muted: true,
+      operator: "+",
+    },
+    {
+      label: "Custo protegido",
+      value: formatBRL(calculo.custoProtegido),
+      muted: false,
+      operator: "",
+    },
+    {
+      label: `Margem de lucro (${formatPct(margemLucro / 100)})`,
+      value: formatBRL(calculo.valorMargem),
+      muted: true,
+      operator: "+",
+    },
+    {
+      label: "Subtotal",
+      value: formatBRL(calculo.subtotal),
+      muted: false,
+      operator: "",
+    },
+    {
+      label: `Imposto (${formatPct(aliquotaImposto / 100)})`,
+      value: formatBRL(calculo.valorImposto),
+      muted: true,
+      operator: "+",
+    },
+  ];
 
   return (
     <div className="p-8 w-full flex flex-col gap-6">
@@ -224,426 +363,664 @@ export default function NovoOrcamentoPage() {
             Novo orçamento
           </h1>
           <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
-            Overhead/hora calculado:{" "}
-            <span style={{ color: "var(--primary)", fontWeight: 500 }}>
-              {formatBRL(overheadPorHora)}
-            </span>
+            Preencha os dados do projeto
           </p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        {/* dados do orçamento */}
-        <div style={sectionStyle} className="flex flex-col gap-4">
-          <p
-            className="text-xs uppercase tracking-wider"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Dados do orçamento
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5 col-span-2">
-              <Label
-                className={labelClass}
-                style={{ color: "var(--text-muted)" }}
-              >
-                Título
-              </Label>
-              <Input
-                placeholder="Ex: Desenvolvimento de site institucional"
-                value={titulo}
-                onChange={(e) => setTitulo(e.target.value)}
-                required
-                style={inputStyle}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label
-                className={labelClass}
-                style={{ color: "var(--text-muted)" }}
-              >
-                Cliente
-              </Label>
-              <Select
-                value={clienteId}
-                onValueChange={(v) => v && setClienteId(v)}
-                modal={false}
-              >
-                <SelectTrigger
-                  className="w-full"
-                  style={{ ...inputStyle, height: 36 }}
-                >
-                  <SelectValue placeholder="Selecione um cliente">
-                    {clientes?.find((c) => c.id === clienteId)?.nome ??
-                      "Selecione um cliente"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent
-                  side="bottom"
-                  sideOffset={4}
-                  style={{
-                    background: "var(--bg-card)",
-                    border: "1px solid var(--border)",
-                    zIndex: 50,
-                  }}
-                >
-                  {clientes?.map((c) => (
-                    <SelectItem
-                      key={c.id}
-                      value={c.id}
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      {c.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label
-                className={labelClass}
-                style={{ color: "var(--text-muted)" }}
-              >
-                Validade (dias)
-              </Label>
-              <Input
-                type="number"
-                value={validadeDias}
-                onChange={(e) => setValidadeDias(Number(e.target.value))}
-                required
-                style={inputStyle}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label
-                className={labelClass}
-                style={{ color: "var(--text-muted)" }}
-              >
-                Margem de lucro (%)
-              </Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={margemLucro}
-                onChange={(e) => setMargemLucro(Number(e.target.value))}
-                required
-                style={inputStyle}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label
-                className={labelClass}
-                style={{ color: "var(--text-muted)" }}
-              >
-                Alíquota imposto (%)
-              </Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={aliquotaImposto}
-                onChange={(e) => setAliquotaImposto(Number(e.target.value))}
-                required
-                style={inputStyle}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5 col-span-2">
-              <Label
-                className={labelClass}
-                style={{ color: "var(--text-muted)" }}
-              >
-                Observações
-              </Label>
-              <Input
-                placeholder="Opcional"
-                value={observacoes}
-                onChange={(e) => setObservacoes(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
+      {/* dados básicos */}
+      <div style={sectionStyle} className="flex flex-col gap-4">
+        <p
+          className="text-xs uppercase tracking-wider"
+          style={{ color: "var(--text-muted)" }}
+        >
+          Dados básicos
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label
+              className={labelClass}
+              style={{ color: "var(--text-muted)" }}
+            >
+              Título do projeto
+            </Label>
+            <Input
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+              placeholder="Ex: Desenvolvimento do ERP"
+              style={inputStyle}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label
+              className={labelClass}
+              style={{ color: "var(--text-muted)" }}
+            >
+              Cliente
+            </Label>
+            <Select
+              value={clienteId}
+              onValueChange={(v) => setClienteId(v ?? "")}
+            >
+              <SelectTrigger style={inputStyle} className="w-full">
+                <SelectValue placeholder="Selecione">
+                  {clienteSelecionado?.nome}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent sideOffset={4}>
+                {clientes?.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label
+              className={labelClass}
+              style={{ color: "var(--text-muted)" }}
+            >
+              Tipo de orçamento
+            </Label>
+            <Select
+              value={tipo}
+              onValueChange={(v) => v && setTipo(v as OrcamentoTipo)}
+            >
+              <SelectTrigger style={inputStyle} className="w-full">
+                <SelectValue>{TIPO_LABELS[tipo]}</SelectValue>
+              </SelectTrigger>
+              <SelectContent sideOffset={4}>
+                <SelectItem value="projeto_fechado">
+                  {TIPO_LABELS.projeto_fechado}
+                </SelectItem>
+                <SelectItem value="por_modulo">
+                  {TIPO_LABELS.por_modulo}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label
+              className={labelClass}
+              style={{ color: "var(--text-muted)" }}
+            >
+              Validade (dias)
+            </Label>
+            <Input
+              type="number"
+              value={validadeDias}
+              onChange={(e) => setValidadeDias(Number(e.target.value))}
+              style={inputStyle}
+            />
           </div>
         </div>
+      </div>
 
-        {/* itens */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <p
+      {/* CALCULADORA — card no topo dos blocos abaixo */}
+      <div
+        style={{
+          background: "var(--bg-card)",
+          border: "1px solid var(--primary-border)",
+          borderRadius: 12,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          className="px-5 py-3 flex items-center justify-between"
+          style={{
+            background: "var(--primary-bg)",
+            borderBottom: "1px solid var(--primary-border)",
+          }}
+        >
+          <p
+            className="text-xs uppercase tracking-wider font-medium"
+            style={{ color: "var(--primary)" }}
+          >
+            Calculadora
+          </p>
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Salário × meses → buffer → margem → imposto
+          </span>
+        </div>
+
+        {/* breakdown */}
+        <div className="px-5 py-3 flex flex-col gap-2">
+          {breakdownLines.map((line, i) => (
+            <div key={i} className="flex justify-between items-center text-sm">
+              <span
+                style={{
+                  color: line.muted
+                    ? "var(--text-muted)"
+                    : "var(--text-secondary)",
+                }}
+              >
+                {line.label}
+              </span>
+              <span
+                style={{
+                  color: line.muted
+                    ? "var(--text-muted)"
+                    : "var(--text-primary)",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {line.operator && (
+                  <span style={{ marginRight: 4 }}>{line.operator}</span>
+                )}
+                {line.value}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* valor final */}
+        <div
+          className="px-5 py-4 flex justify-between items-center"
+          style={{
+            borderTop: "1px solid var(--border)",
+            background: "var(--bg-card-alt)",
+          }}
+        >
+          <div className="flex flex-col">
+            <span
               className="text-xs uppercase tracking-wider"
               style={{ color: "var(--text-muted)" }}
             >
-              Itens do orçamento
-            </p>
+              {tipo === "por_modulo"
+                ? "Valor cobrado (soma dos módulos)"
+                : "Valor do projeto"}
+            </span>
+            {tipo === "por_modulo" && calculo.somaItens != null && (
+              <span
+                className="text-xs mt-0.5"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Calculado: {formatBRL(calculo.valorCalculado)}
+              </span>
+            )}
+          </div>
+          <span
+            className="text-2xl font-semibold"
+            style={{
+              color: "var(--primary)",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {formatBRL(calculo.valorCobrado)}
+          </span>
+        </div>
+
+        {/* aviso de divergência (só em por_modulo) */}
+        {tipo === "por_modulo" && calculo.temDivergencia && (
+          <div
+            className="px-5 py-3 flex items-start gap-2 text-xs"
+            style={{
+              borderTop: "1px solid var(--warning-border)",
+              background: "var(--warning-bg)",
+              color: "var(--warning)",
+            }}
+          >
+            <AlertTriangleIcon className="w-4 h-4 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium">
+                Soma dos módulos {calculo.divergencia > 0 ? "acima" : "abaixo"}{" "}
+                do calculado em {formatBRL(Math.abs(calculo.divergencia))}
+              </p>
+              <p className="mt-0.5 opacity-80">
+                {calculo.divergencia > 0
+                  ? "Você está cobrando mais do que o necessário — confirma se é intencional."
+                  : "Você está cobrando menos do que o necessário pra cobrir custo + buffer + margem."}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* sliders / inputs dos parâmetros */}
+        <div
+          className="px-5 py-4 grid grid-cols-3 gap-4"
+          style={{ borderTop: "1px solid var(--border)" }}
+        >
+          {[
+            {
+              label: "Buffer de atraso",
+              value: bufferAtraso,
+              setter: setBufferAtrasoOverride,
+              hint: "Protege contra meses extras",
+            },
+            {
+              label: "Margem de lucro",
+              value: margemLucro,
+              setter: setMargemLucro,
+              hint: "Aplicada sobre custo protegido",
+            },
+            {
+              label: "Imposto",
+              value: aliquotaImposto,
+              setter: setAliquotaImposto,
+              hint: "Simples Nacional",
+            },
+          ].map((field) => (
+            <div key={field.label} className="flex flex-col gap-1">
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                {field.label} (%)
+              </Label>
+              <Input
+                type="number"
+                step="0.5"
+                min="0"
+                value={field.value}
+                onChange={(e) => field.setter(Number(e.target.value))}
+                style={inputStyle}
+              />
+              <span
+                className="text-[10px]"
+                style={{ color: "var(--text-faint)" }}
+              >
+                {field.hint}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* EQUIPE GLOBAL — só em projeto_fechado */}
+      {tipo === "projeto_fechado" && (
+        <div style={sectionStyle} className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p
+                className="text-xs uppercase tracking-wider"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Equipe alocada
+              </p>
+              <p
+                className="text-xs mt-1"
+                style={{ color: "var(--text-faint)" }}
+              >
+                Pessoas que vão trabalhar no projeto e por quantos meses
+              </p>
+            </div>
             <button
               type="button"
-              onClick={addItem}
-              className="flex items-center gap-1.5 text-xs transition-colors"
-              style={{ color: "var(--primary)" }}
+              onClick={addMembroGlobal}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition-all"
+              style={{
+                border: "1px solid var(--border)",
+                color: "var(--text-secondary)",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = "var(--bg-hover)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = "transparent")
+              }
             >
-              <PlusIcon className="w-3.5 h-3.5" />
-              Adicionar item
+              <UserPlusIcon className="w-3.5 h-3.5" />
+              Adicionar pessoa
             </button>
           </div>
 
-          {itens.map((item, itemIndex) => {
-            const calc = calcularItem(item);
-            return (
-              <div
-                key={item.id}
-                style={sectionStyle}
-                className="flex flex-col gap-4"
-              >
-                {/* título do item */}
-                <div className="flex items-center gap-3">
-                  <span
-                    className="text-xs w-5"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    {itemIndex + 1}.
-                  </span>
-                  <Input
-                    placeholder="Título do item"
-                    value={item.descricao}
-                    onChange={(e) =>
-                      updateItemDescricao(item.id, e.target.value)
-                    }
-                    required
-                    className="flex-1"
-                    style={inputStyle}
-                  />
-                  {itens.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeItem(item.id)}
-                      className="p-1.5 transition-colors"
-                      style={{ color: "var(--text-faint)" }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.color = "var(--error)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.color = "var(--text-faint)")
-                      }
-                    >
-                      <Trash2Icon className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-
-                {/* descrição detalhada */}
-                <div className="ml-6">
-                  <textarea
-                    placeholder="Descrição detalhada do item (opcional)"
-                    value={item.descricao_detalhada}
-                    onChange={(e) =>
-                      updateItemDescricaoDetalhada(item.id, e.target.value)
-                    }
-                    rows={2}
-                    className="flex w-full rounded-md border px-3 py-2 text-sm resize-none"
-                    style={{ ...inputStyle, outline: "none" }}
-                  />
-                </div>
-
-                {/* funcionários */}
-                <div className="flex flex-col gap-2 ml-6">
-                  {item.funcionarios.map((f, fIndex) => (
-                    <div key={fIndex} className="flex items-center gap-3">
-                      <Select
-                        value={f.funcionario_id ? String(f.funcionario_id) : ""}
-                        onValueChange={(v) =>
-                          v &&
-                          updateFuncionarioInItem(
-                            item.id,
-                            fIndex,
-                            "funcionario_id",
-                            Number(v),
-                          )
-                        }
-                      >
-                        <SelectTrigger
-                          className="flex-1"
-                          style={{ ...inputStyle, height: 36 }}
-                        >
-                          <SelectValue placeholder="Selecione um funcionário">
-                            {funcionarios?.find(
-                              (fn) => fn.id === f.funcionario_id,
-                            )?.name ?? "Selecione um funcionário"}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent
-                          style={{
-                            background: "var(--bg-card)",
-                            border: "1px solid var(--border)",
-                          }}
-                        >
-                          {funcionarios?.map((fn) => (
-                            <SelectItem
-                              key={fn.id}
-                              value={String(fn.id)}
-                              style={{ color: "var(--text-primary)" }}
-                            >
-                              {fn.name} — {formatBRL((fn.salario ?? 0) / 220)}/h
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <div className="flex items-center gap-2 w-32">
-                        <Input
-                          type="number"
-                          min="0.5"
-                          step="0.5"
-                          value={f.horas}
-                          onChange={(e) =>
-                            updateFuncionarioInItem(
-                              item.id,
-                              fIndex,
-                              "horas",
-                              Number(e.target.value),
-                            )
-                          }
-                          className="w-20"
-                          style={inputStyle}
-                        />
-                        <span
-                          className="text-xs"
-                          style={{ color: "var(--text-muted)" }}
-                        >
-                          h
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          removeFuncionarioFromItem(item.id, fIndex)
-                        }
-                        className="p-1.5 transition-colors"
-                        style={{ color: "var(--text-faint)" }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.color = "var(--error)")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.color = "var(--text-faint)")
-                        }
-                      >
-                        <Trash2Icon className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-
-                  <button
-                    type="button"
-                    onClick={() => addFuncionarioToItem(item.id)}
-                    className="flex items-center gap-1.5 text-xs transition-colors w-fit"
-                    style={{ color: "var(--text-muted)" }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.color = "var(--primary)")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.color = "var(--text-muted)")
-                    }
-                  >
-                    <UserPlusIcon className="w-3.5 h-3.5" />
-                    Atribuir funcionário
-                  </button>
-                </div>
-
-                {/* preview de cálculo */}
-                {item.funcionarios.length > 0 && (
-                  <div
-                    className="ml-6 flex items-center gap-6 pt-2"
-                    style={{ borderTop: "1px solid var(--border)" }}
-                  >
-                    {[
-                      {
-                        label: "Custo base",
-                        value: formatBRL(calc.custoBase),
-                        highlight: false,
-                      },
-                      {
-                        label: `Com margem (${margemLucro}%)`,
-                        value: formatBRL(calc.comMargem),
-                        highlight: false,
-                      },
-                      {
-                        label: `Com imposto (${aliquotaImposto}%)`,
-                        value: formatBRL(calc.comImposto),
-                        highlight: true,
-                      },
-                    ].map((b) => (
-                      <div key={b.label}>
-                        <p
-                          className="text-xs"
-                          style={{ color: "var(--text-muted)" }}
-                        >
-                          {b.label}
-                        </p>
-                        <p
-                          className="text-sm font-medium"
-                          style={{
-                            color: b.highlight
-                              ? "var(--primary)"
-                              : "var(--text-secondary)",
-                          }}
-                        >
-                          {b.value}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          {equipeGlobal.length === 0 ? (
+            <p
+              className="text-sm py-4 text-center"
+              style={{ color: "var(--text-faint)" }}
+            >
+              Nenhuma pessoa alocada ainda
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {equipeGlobal.map((membro, i) => (
+                <MembroRow
+                  key={i}
+                  membro={membro}
+                  funcionarios={funcionarios ?? []}
+                  onUpdate={(field, value) =>
+                    updateMembroGlobal(i, field, value)
+                  }
+                  onRemove={() => removeMembroGlobal(i)}
+                />
+              ))}
+            </div>
+          )}
         </div>
+      )}
 
-        {/* total */}
-        <div
-          className="rounded-xl p-5 flex items-center justify-between"
-          style={{
-            background: "var(--primary-bg)",
-            border: "1px solid var(--primary-border)",
-          }}
-        >
+      {/* ITENS / MÓDULOS */}
+      <div style={sectionStyle} className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
           <div>
             <p
               className="text-xs uppercase tracking-wider"
               style={{ color: "var(--text-muted)" }}
             >
-              Total do orçamento
+              {tipo === "por_modulo" ? "Módulos" : "Escopo do projeto"}
             </p>
-            <p
-              className="text-2xl font-semibold mt-1"
-              style={{ color: "var(--primary)" }}
-            >
-              {formatBRL(totalOrcamento)}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              Overhead aplicado
-            </p>
-            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-              {formatBRL(overheadPorHora)}/hora
+            <p className="text-xs mt-1" style={{ color: "var(--text-faint)" }}>
+              {tipo === "por_modulo"
+                ? "Cada módulo tem sua equipe e seu preço"
+                : "Itens descritivos do escopo (aparecem no PDF do cliente)"}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={addItem}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition-all"
+            style={{
+              border: "1px solid var(--border)",
+              color: "var(--text-secondary)",
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.backgroundColor = "var(--bg-hover)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.backgroundColor = "transparent")
+            }
+          >
+            <PlusIcon className="w-3.5 h-3.5" />
+            {tipo === "por_modulo" ? "Adicionar módulo" : "Adicionar item"}
+          </button>
         </div>
 
+        <div className="flex flex-col gap-3">
+          {itens.map((item, idx) => (
+            <div
+              key={item.id}
+              className="rounded-lg p-4 flex flex-col gap-3"
+              style={{
+                border: "1px solid var(--border)",
+                background: "var(--bg-card-alt)",
+              }}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium shrink-0 mt-0.5"
+                  style={{
+                    background: "var(--primary-bg)",
+                    color: "var(--primary)",
+                    border: "1px solid var(--primary-border)",
+                  }}
+                >
+                  {idx + 1}
+                </div>
+                <div className="flex-1 flex flex-col gap-2">
+                  <Input
+                    value={item.descricao}
+                    onChange={(e) =>
+                      updateItem(item.id, { descricao: e.target.value })
+                    }
+                    placeholder={
+                      tipo === "por_modulo"
+                        ? "Nome do módulo (ex: Estoque)"
+                        : "Descrição do item"
+                    }
+                    style={inputStyle}
+                  />
+                  <Input
+                    value={item.descricao_detalhada}
+                    onChange={(e) =>
+                      updateItem(item.id, {
+                        descricao_detalhada: e.target.value,
+                      })
+                    }
+                    placeholder="Detalhamento (opcional)"
+                    style={inputStyle}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeItem(item.id)}
+                  disabled={itens.length === 1}
+                  className="p-1.5 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => {
+                    if (itens.length > 1)
+                      e.currentTarget.style.color = "var(--error)";
+                  }}
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.color = "var(--text-muted)")
+                  }
+                >
+                  <Trash2Icon className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* equipe do módulo + valor manual (só em por_modulo) */}
+              {tipo === "por_modulo" && (
+                <div
+                  className="pl-9 flex flex-col gap-3 pt-3"
+                  style={{ borderTop: "1px solid var(--border)" }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span
+                      className="text-xs uppercase tracking-wider"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      Equipe deste módulo
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => addMembroItem(item.id)}
+                      className="flex items-center gap-1 text-xs px-2 py-1 rounded transition-all"
+                      style={{ color: "var(--text-secondary)" }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.backgroundColor =
+                          "var(--bg-hover)")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.backgroundColor = "transparent")
+                      }
+                    >
+                      <UserPlusIcon className="w-3 h-3" />
+                      Pessoa
+                    </button>
+                  </div>
+
+                  {item.equipe.length === 0 ? (
+                    <p
+                      className="text-xs py-2"
+                      style={{ color: "var(--text-faint)" }}
+                    >
+                      Nenhuma pessoa neste módulo
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {item.equipe.map((membro, i) => (
+                        <MembroRow
+                          key={i}
+                          membro={membro}
+                          funcionarios={funcionarios ?? []}
+                          onUpdate={(field, value) =>
+                            updateMembroItem(item.id, i, field, value)
+                          }
+                          onRemove={() => removeMembroItem(item.id, i)}
+                          compact
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-1.5 mt-1">
+                    <Label
+                      className={labelClass}
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      Valor cobrado neste módulo
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={item.valor_manual}
+                      onChange={(e) =>
+                        updateItem(item.id, { valor_manual: e.target.value })
+                      }
+                      placeholder="R$ 0,00"
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* observações */}
+      <div style={sectionStyle} className="flex flex-col gap-2">
+        <Label className={labelClass} style={{ color: "var(--text-muted)" }}>
+          Observações (opcional)
+        </Label>
+        <textarea
+          value={observacoes}
+          onChange={(e) => setObservacoes(e.target.value)}
+          rows={3}
+          className="rounded-md p-2 text-sm"
+          style={{
+            ...inputStyle,
+            border: "1px solid var(--border)",
+            resize: "vertical",
+          }}
+          placeholder="Condições especiais, prazos diferenciados, etc."
+        />
+      </div>
+
+      {/* ações */}
+      <div className="flex justify-end gap-3">
         <button
-          type="submit"
-          disabled={isPending || !clienteId || !titulo}
-          className="w-full py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+          type="button"
+          onClick={() => router.back()}
+          className="px-4 py-2 rounded-lg text-sm transition-all"
+          style={{
+            border: "1px solid var(--border)",
+            color: "var(--text-secondary)",
+          }}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.backgroundColor = "var(--bg-hover)")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.backgroundColor = "transparent")
+          }
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={isPending || !titulo || !clienteId}
+          className="px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
             background: "var(--primary)",
             color: "#ffffff",
             border: "1px solid var(--primary)",
           }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.background = "var(--primary-light)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.background = "var(--primary)")
-          }
         >
-          {isPending ? "Criando..." : "Criar orçamento"}
+          {isPending ? "Salvando..." : "Salvar orçamento"}
         </button>
-      </form>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Linha de membro da equipe (reutilizada em equipe global e por módulo)
+// ──────────────────────────────────────────────────────────────────
+function MembroRow({
+  membro,
+  funcionarios,
+  onUpdate,
+  onRemove,
+  compact = false,
+}: {
+  membro: EquipeMembro;
+  funcionarios: { id: number; name: string; salario: number }[];
+  onUpdate: (field: keyof EquipeMembro, value: number) => void;
+  onRemove: () => void;
+  compact?: boolean;
+}) {
+  const func = funcionarios.find((f) => f.id === membro.funcionario_id);
+  const salario = func?.salario ?? 0;
+  const custoTotal = salario * membro.meses;
+
+  const inputStyle = {
+    background: "var(--bg-card)",
+    borderColor: "var(--border)",
+    color: "var(--text-primary)",
+  };
+
+  return (
+    <div
+      className="grid items-center gap-2"
+      style={{
+        gridTemplateColumns: compact
+          ? "1fr 110px 80px 100px 28px"
+          : "1fr 140px 100px 130px 32px",
+      }}
+    >
+      <Select
+        value={membro.funcionario_id ? String(membro.funcionario_id) : ""}
+        onValueChange={(v) => v && onUpdate("funcionario_id", Number(v))}
+      >
+        <SelectTrigger style={inputStyle} className="w-full">
+          <SelectValue placeholder="Selecione">{func?.name}</SelectValue>
+        </SelectTrigger>
+        <SelectContent sideOffset={4}>
+          {funcionarios.map((f) => (
+            <SelectItem key={f.id} value={String(f.id)}>
+              {f.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Input
+        value={formatBRL(salario)}
+        disabled
+        style={{
+          ...inputStyle,
+          color: "var(--text-muted)",
+          fontVariantNumeric: "tabular-nums",
+        }}
+        title="Salário do cadastro do funcionário (não editável)"
+      />
+
+      <Input
+        type="number"
+        min="0"
+        step="0.5"
+        value={membro.meses}
+        onChange={(e) => onUpdate("meses", Number(e.target.value))}
+        style={inputStyle}
+        placeholder="Meses"
+      />
+
+      <Input
+        value={formatBRL(custoTotal)}
+        disabled
+        style={{
+          ...inputStyle,
+          color: custoTotal > 0 ? "var(--primary)" : "var(--text-muted)",
+          fontVariantNumeric: "tabular-nums",
+          fontWeight: 500,
+        }}
+        title="Custo total (salário × meses)"
+      />
+
+      <button
+        type="button"
+        onClick={onRemove}
+        className="p-1.5 rounded transition-colors"
+        style={{ color: "var(--text-muted)" }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = "var(--error)")}
+        onMouseLeave={(e) =>
+          (e.currentTarget.style.color = "var(--text-muted)")
+        }
+      >
+        <Trash2Icon className="w-4 h-4" />
+      </button>
     </div>
   );
 }

@@ -5,12 +5,16 @@ import {
   OrcamentoStatus,
 } from "@/types/orcamentos-types";
 
+// ─────────────────────────────────────────────────────────
+// LIST — listagem leve pra tela de orçamentos e dashboard
+// ─────────────────────────────────────────────────────────
 export async function ListOrcamentos(): Promise<Orcamento[]> {
   const { data, error } = await supabase
     .from("orcamentos")
     .select(
       `
-      id, titulo, status, margem_lucro, aliquota_imposto,
+      id, titulo, status, tipo,
+      margem_lucro, aliquota_imposto, buffer_atraso,
       validade_dias, observacoes, created_at,
       cliente (id, nome, email, cpf_cnpj)
     `,
@@ -21,18 +25,22 @@ export async function ListOrcamentos(): Promise<Orcamento[]> {
   return data as unknown as Orcamento[];
 }
 
+// ─────────────────────────────────────────────────────────
+// GET — detalhe com itens e alocações
+// ─────────────────────────────────────────────────────────
 export async function GetOrcamento(id: string) {
   const { data, error } = await supabase
     .from("orcamentos")
     .select(
       `
-      id, titulo, status, numero, margem_lucro, aliquota_imposto,
+      id, titulo, status, numero, tipo,
+      margem_lucro, aliquota_imposto, buffer_atraso,
       validade_dias, observacoes, created_at,
       cliente (id, nome, email, cpf_cnpj, telefone, logradouro, numero, cidade, estado),
       orcamento_itens (
-        id, descricao, descricao_detalhada,
+        id, descricao, descricao_detalhada, valor_manual,
         orcamento_item_funcionarios (
-          id, horas,
+          id, meses_alocados, salario_snapshot,
           funcionario,
           funcionario_data:funcionarios (id, name, salario)
         )
@@ -46,15 +54,19 @@ export async function GetOrcamento(id: string) {
   return data;
 }
 
+// ─────────────────────────────────────────────────────────
+// CREATE — cria orçamento + itens + alocações em cadeia
+// ─────────────────────────────────────────────────────────
 export async function CreateOrcamento(input: CreateOrcamentoInput) {
-  // 1. cria o orçamento
   const { data: orcamento, error: orcamentoError } = await supabase
     .from("orcamentos")
     .insert({
       titulo: input.titulo,
       cliente: input.cliente,
+      tipo: input.tipo,
       margem_lucro: input.margem_lucro,
       aliquota_imposto: input.aliquota_imposto,
+      buffer_atraso: input.buffer_atraso,
       validade_dias: input.validade_dias,
       observacoes: input.observacoes,
     })
@@ -63,7 +75,6 @@ export async function CreateOrcamento(input: CreateOrcamentoInput) {
 
   if (orcamentoError) throw new Error(orcamentoError.message);
 
-  // 2. cria os itens
   for (const item of input.itens) {
     const { data: itemData, error: itemError } = await supabase
       .from("orcamento_itens")
@@ -71,14 +82,13 @@ export async function CreateOrcamento(input: CreateOrcamentoInput) {
         orcamento: orcamento.id,
         descricao: item.descricao,
         descricao_detalhada: item.descricao_detalhada ?? null,
-        horas: item.funcionarios.reduce((acc, f) => acc + f.horas, 0),
+        valor_manual: item.valor_manual ?? null,
       })
       .select()
       .single();
 
     if (itemError) throw new Error(itemError.message);
 
-    // 3. atribui funcionários ao item
     if (item.funcionarios.length > 0) {
       const { error: funcError } = await supabase
         .from("orcamento_item_funcionarios")
@@ -86,7 +96,8 @@ export async function CreateOrcamento(input: CreateOrcamentoInput) {
           item.funcionarios.map((f) => ({
             item: itemData.id,
             funcionario: f.funcionario,
-            horas: f.horas,
+            meses_alocados: f.meses_alocados,
+            salario_snapshot: f.salario_snapshot,
           })),
         );
 
@@ -97,6 +108,9 @@ export async function CreateOrcamento(input: CreateOrcamentoInput) {
   return orcamento;
 }
 
+// ─────────────────────────────────────────────────────────
+// UPDATE STATUS — usado em rascunho → enviado → aprovado etc.
+// ─────────────────────────────────────────────────────────
 export async function UpdateOrcamentoStatus(
   id: string,
   status: OrcamentoStatus,
@@ -112,15 +126,20 @@ export async function UpdateOrcamentoStatus(
   return data;
 }
 
+// ─────────────────────────────────────────────────────────
+// UPDATE — atualiza cabeçalho e recria itens do zero
+// (mais simples que diffar; o cascade dos itens limpa as alocações)
+// ─────────────────────────────────────────────────────────
 export async function UpdateOrcamento(id: string, input: CreateOrcamentoInput) {
-  // 1. atualiza o cabeçalho
   const { error: orcamentoError } = await supabase
     .from("orcamentos")
     .update({
       titulo: input.titulo,
       cliente: input.cliente,
+      tipo: input.tipo,
       margem_lucro: input.margem_lucro,
       aliquota_imposto: input.aliquota_imposto,
+      buffer_atraso: input.buffer_atraso,
       validade_dias: input.validade_dias,
       observacoes: input.observacoes,
     })
@@ -128,7 +147,6 @@ export async function UpdateOrcamento(id: string, input: CreateOrcamentoInput) {
 
   if (orcamentoError) throw new Error(orcamentoError.message);
 
-  // 2. deleta todos os itens antigos (cascade deleta os funcionários também)
   const { error: deleteError } = await supabase
     .from("orcamento_itens")
     .delete()
@@ -136,15 +154,14 @@ export async function UpdateOrcamento(id: string, input: CreateOrcamentoInput) {
 
   if (deleteError) throw new Error(deleteError.message);
 
-  // 3. recria os itens com os novos dados
   for (const item of input.itens) {
     const { data: itemData, error: itemError } = await supabase
       .from("orcamento_itens")
       .insert({
         orcamento: id,
         descricao: item.descricao,
-        descricao_detalhada: item.descricao_detalhada ?? null, // ← confirma que está aqui
-        horas: item.funcionarios.reduce((acc, f) => acc + f.horas, 0),
+        descricao_detalhada: item.descricao_detalhada ?? null,
+        valor_manual: item.valor_manual ?? null,
       })
       .select()
       .single();
@@ -158,7 +175,8 @@ export async function UpdateOrcamento(id: string, input: CreateOrcamentoInput) {
           item.funcionarios.map((f) => ({
             item: itemData.id,
             funcionario: f.funcionario,
-            horas: f.horas,
+            meses_alocados: f.meses_alocados,
+            salario_snapshot: f.salario_snapshot,
           })),
         );
 
@@ -167,12 +185,23 @@ export async function UpdateOrcamento(id: string, input: CreateOrcamentoInput) {
   }
 }
 
+// ─────────────────────────────────────────────────────────
+// STATS — usado no dashboard pra calcular métricas agregadas.
+// Traz já com snapshot do salário (não depende mais do cadastro).
+// ─────────────────────────────────────────────────────────
 export async function GetOrcamentosStats() {
-  const { data, error } = await supabase
-    .from("orcamentos")
-    .select(
-      "id, status, created_at, margem_lucro, aliquota_imposto, orcamento_itens(id, orcamento_item_funcionarios(horas, funcionario_data:funcionarios(salario)))",
-    );
+  const { data, error } = await supabase.from("orcamentos").select(
+    `
+      id, status, tipo, created_at,
+      margem_lucro, aliquota_imposto, buffer_atraso,
+      orcamento_itens (
+        id, valor_manual,
+        orcamento_item_funcionarios (
+          meses_alocados, salario_snapshot
+        )
+      )
+    `,
+  );
 
   if (error) throw new Error(error.message);
   return data;

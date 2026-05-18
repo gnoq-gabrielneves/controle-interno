@@ -1,10 +1,10 @@
 "use client";
-
 import { NewFuncionario } from "@/components/NewFuncionario/NewFuncionario";
 import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -12,10 +12,15 @@ import {
 import { useListFuncionarios } from "@/hooks/use-funcionarios";
 import { UserIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 
 export default function FuncionariosPage() {
   const { data, isLoading } = useListFuncionarios();
   const router = useRouter();
+  const custoTotalEquipe = useMemo(
+    () => (data ?? []).reduce((acc, f) => acc + (f.salario ?? 0), 0),
+    [data],
+  );
 
   return (
     <div className="p-8 flex flex-col gap-6">
@@ -182,6 +187,39 @@ export default function FuncionariosPage() {
               </TableRow>
             )}
           </TableBody>
+
+          {!isLoading && data && data.length > 0 && (
+            <TableFooter
+              style={{
+                backgroundColor: "var(--bg-card-alt)",
+                borderTop: "1px solid var(--border)",
+              }}
+            >
+              <TableRow
+                className="hover:bg-transparent"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <TableCell
+                  colSpan={3}
+                  className="text-xs uppercase tracking-wider font-medium"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Custo total da equipe
+                </TableCell>
+                <TableCell
+                  className="text-sm font-semibold"
+                  style={{ color: "var(--primary)" }}
+                  title={`${data.length} funcionário${data.length > 1 ? "s" : ""} · R$ ${(custoTotalEquipe / 220).toFixed(2)}/h base`}
+                >
+                  {new Intl.NumberFormat("pt-BR", {
+                    style: "currency",
+                    currency: "BRL",
+                  }).format(custoTotalEquipe)}
+                </TableCell>
+                <TableCell />
+              </TableRow>
+            </TableFooter>
+          )}
         </Table>
       </div>
     </div>
