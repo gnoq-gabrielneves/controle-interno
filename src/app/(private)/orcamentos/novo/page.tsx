@@ -1,5 +1,5 @@
-// src/app/(private)/orcamentos/novo/page.tsx
 "use client";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -22,17 +22,8 @@ import {
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-// tipos internos do formulário
-type ItemFuncionario = {
-  funcionario_id: number;
-  horas: number;
-};
-
-type Item = {
-  id: string; // id temporário só pro react key
-  descricao: string;
-  funcionarios: ItemFuncionario[];
-};
+type ItemFuncionario = { funcionario_id: number; horas: number };
+type Item = { id: string; descricao: string; funcionarios: ItemFuncionario[] };
 
 function formatBRL(value: number) {
   return new Intl.NumberFormat("pt-BR", {
@@ -44,83 +35,60 @@ function formatBRL(value: number) {
 export default function NovoOrcamentoPage() {
   const router = useRouter();
   const { mutate: createOrcamento, isPending } = useCreateOrcamento();
-
-  // dados externos necessários pro cálculo
   const { data: clientes } = useListClientes();
   const { data: funcionarios } = useListFuncionarios();
   const { data: gastos } = useListGastos();
-  const { data: totalSocios = 0 } = useCountSocietarios();
+  useCountSocietarios();
 
-  // campos do cabeçalho do orçamento
   const [titulo, setTitulo] = useState("");
   const [clienteId, setClienteId] = useState("");
   const [margemLucro, setMargemLucro] = useState(10);
   const [aliquotaImposto, setAliquotaImposto] = useState(6);
   const [validadeDias, setValidadeDias] = useState(30);
   const [observacoes, setObservacoes] = useState("");
-
-  // itens do orçamento
   const [itens, setItens] = useState<Item[]>([
     { id: crypto.randomUUID(), descricao: "", funcionarios: [] },
   ]);
 
-  /*
-   * CÁLCULO DO OVERHEAD POR HORA
-   * total gastos mensais ÷ (total funcionários × 220h)
-   */
   const overheadPorHora = useMemo(() => {
     const totalGastosMensal =
-      gastos?.reduce((acc, g) => {
-        return acc + (g.recorrencia === "mensal" ? g.valor : g.valor / 12);
-      }, 0) ?? 0;
-
-    const totalFuncionarios = funcionarios?.length ?? 1;
-    return totalGastosMensal / (totalFuncionarios * 220);
+      gastos?.reduce(
+        (acc, g) => acc + (g.recorrencia === "mensal" ? g.valor : g.valor / 12),
+        0,
+      ) ?? 0;
+    return totalGastosMensal / ((funcionarios?.length ?? 1) * 220);
   }, [gastos, funcionarios]);
 
-  /*
-   * CÁLCULO DO VALOR DE CADA ITEM
-   * custo base = Σ horas × (salário/hora + overhead/hora)
-   * valor final = custo base × (1 + margem) × (1 + imposto)
-   */
   function calcularItem(item: Item) {
     const custoBase = item.funcionarios.reduce((acc, f) => {
       const func = funcionarios?.find((fn) => fn.id === f.funcionario_id);
       if (!func) return acc;
-      const salarioPorHora = (func.salario ?? 0) / 220;
-      return acc + f.horas * (salarioPorHora + overheadPorHora);
+      return acc + f.horas * ((func.salario ?? 0) / 220 + overheadPorHora);
     }, 0);
-
     const comMargem = custoBase * (1 + margemLucro / 100);
     const comImposto = comMargem * (1 + aliquotaImposto / 100);
     return { custoBase, comMargem, comImposto };
   }
 
-  // total do orçamento
-  const totalOrcamento = useMemo(() => {
-    return itens.reduce((acc, item) => {
-      return acc + calcularItem(item).comImposto;
-    }, 0);
-  }, [itens, margemLucro, aliquotaImposto, funcionarios, overheadPorHora]);
+  const totalOrcamento = useMemo(
+    () => itens.reduce((acc, item) => acc + calcularItem(item).comImposto, 0),
+    [itens, margemLucro, aliquotaImposto, funcionarios, overheadPorHora],
+  );
 
-  // funções de manipulação dos itens
   function addItem() {
     setItens((prev) => [
       ...prev,
       { id: crypto.randomUUID(), descricao: "", funcionarios: [] },
     ]);
   }
-
   function removeItem(id: string) {
     setItens((prev) => prev.filter((item) => item.id !== id));
   }
-
   function updateItemDescricao(id: string, descricao: string) {
     setItens((prev) =>
       prev.map((item) => (item.id === id ? { ...item, descricao } : item)),
     );
   }
-
   function addFuncionarioToItem(itemId: string) {
     setItens((prev) =>
       prev.map((item) =>
@@ -136,7 +104,6 @@ export default function NovoOrcamentoPage() {
       ),
     );
   }
-
   function removeFuncionarioFromItem(itemId: string, index: number) {
     setItens((prev) =>
       prev.map((item) =>
@@ -149,7 +116,6 @@ export default function NovoOrcamentoPage() {
       ),
     );
   }
-
   function updateFuncionarioInItem(
     itemId: string,
     index: number,
@@ -184,21 +150,25 @@ export default function NovoOrcamentoPage() {
           descricao: item.descricao,
           funcionarios: item.funcionarios
             .filter((f) => f.funcionario_id !== 0)
-            .map((f) => ({
-              funcionario: f.funcionario_id,
-              horas: f.horas,
-            })),
+            .map((f) => ({ funcionario: f.funcionario_id, horas: f.horas })),
         })),
       },
-      {
-        onSuccess: () => router.push("/orcamentos"),
-      },
+      { onSuccess: () => router.push("/orcamentos") },
     );
   }
 
-  const inputClass =
-    "bg-white/5 border-white/10 text-white placeholder:text-white/20 focus-visible:border-sky-500/50";
-  const labelClass = "text-white/60 text-xs uppercase tracking-wider";
+  const inputStyle = {
+    background: "var(--bg-card)",
+    borderColor: "var(--border)",
+    color: "var(--text-primary)",
+  };
+  const labelClass = "text-xs uppercase tracking-wider font-medium";
+  const sectionStyle = {
+    background: "var(--bg-card)",
+    border: "1px solid var(--border)",
+    borderRadius: 12,
+    padding: 24,
+  };
 
   return (
     <div className="p-8 w-full flex flex-col gap-6">
@@ -206,56 +176,98 @@ export default function NovoOrcamentoPage() {
       <div className="flex items-center gap-4">
         <button
           onClick={() => router.back()}
-          className="p-2 rounded-lg border border-white/10 hover:bg-white/5 transition-all text-white/50 hover:text-white/80"
+          className="p-2 rounded-lg transition-all"
+          style={{
+            border: "1px solid var(--border)",
+            color: "var(--text-muted)",
+          }}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.backgroundColor = "var(--bg-hover)")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.backgroundColor = "transparent")
+          }
         >
           <ArrowLeftIcon className="w-4 h-4" />
         </button>
         <div>
-          <h1 className="text-xl font-semibold">Novo orçamento</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <h1
+            className="text-xl font-semibold"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Novo orçamento
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
             Overhead/hora calculado:{" "}
-            <span className="text-sky-300">{formatBRL(overheadPorHora)}</span>
+            <span style={{ color: "var(--primary)", fontWeight: 500 }}>
+              {formatBRL(overheadPorHora)}
+            </span>
           </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         {/* dados do orçamento */}
-        <div className="rounded-xl border border-white/10 bg-white/2 p-6 flex flex-col gap-4">
-          <p className="text-xs text-white/30 uppercase tracking-wider">
+        <div style={sectionStyle} className="flex flex-col gap-4">
+          <p
+            className="text-xs uppercase tracking-wider"
+            style={{ color: "var(--text-muted)" }}
+          >
             Dados do orçamento
           </p>
-
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5 col-span-2">
-              <Label className={labelClass}>Título</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Título
+              </Label>
               <Input
                 placeholder="Ex: Desenvolvimento de site institucional"
                 value={titulo}
                 onChange={(e) => setTitulo(e.target.value)}
                 required
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
 
-            {/* select de cliente */}
             <div className="flex flex-col gap-1.5">
-              <Label className={labelClass}>Cliente</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Cliente
+              </Label>
               <Select
                 value={clienteId}
                 onValueChange={(v) => v && setClienteId(v)}
                 modal={false}
               >
-                <SelectTrigger className="bg-white/5 w-full border-white/10 text-white">
-                  <SelectValue placeholder="Selecione um cliente" />
+                <SelectTrigger
+                  className="w-full"
+                  style={{ ...inputStyle, height: 36 }}
+                >
+                  <SelectValue placeholder="Selecione um cliente">
+                    {clientes?.find((c) => c.id === clienteId)?.nome ??
+                      "Selecione um cliente"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent
                   side="bottom"
                   sideOffset={4}
-                  className="bg-[#0d0d1a] border-white/10 text-white z-50"
+                  style={{
+                    background: "var(--bg-card)",
+                    border: "1px solid var(--border)",
+                    zIndex: 50,
+                  }}
                 >
                   {clientes?.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
+                    <SelectItem
+                      key={c.id}
+                      value={c.id}
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       {c.nome}
                     </SelectItem>
                   ))}
@@ -264,47 +276,64 @@ export default function NovoOrcamentoPage() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label className={labelClass}>Validade (dias)</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Validade (dias)
+              </Label>
               <Input
                 type="number"
                 value={validadeDias}
                 onChange={(e) => setValidadeDias(Number(e.target.value))}
                 required
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
-
             <div className="flex flex-col gap-1.5">
-              <Label className={labelClass}>Margem de lucro (%)</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Margem de lucro (%)
+              </Label>
               <Input
                 type="number"
                 step="0.1"
                 value={margemLucro}
                 onChange={(e) => setMargemLucro(Number(e.target.value))}
                 required
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
-
             <div className="flex flex-col gap-1.5">
-              <Label className={labelClass}>Alíquota imposto (%)</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Alíquota imposto (%)
+              </Label>
               <Input
                 type="number"
                 step="0.1"
                 value={aliquotaImposto}
                 onChange={(e) => setAliquotaImposto(Number(e.target.value))}
                 required
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
-
             <div className="flex flex-col gap-1.5 col-span-2">
-              <Label className={labelClass}>Observações</Label>
+              <Label
+                className={labelClass}
+                style={{ color: "var(--text-muted)" }}
+              >
+                Observações
+              </Label>
               <Input
                 placeholder="Opcional"
                 value={observacoes}
                 onChange={(e) => setObservacoes(e.target.value)}
-                className={inputClass}
+                style={inputStyle}
               />
             </div>
           </div>
@@ -313,13 +342,17 @@ export default function NovoOrcamentoPage() {
         {/* itens */}
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-white/30 uppercase tracking-wider">
+            <p
+              className="text-xs uppercase tracking-wider"
+              style={{ color: "var(--text-muted)" }}
+            >
               Itens do orçamento
             </p>
             <button
               type="button"
               onClick={addItem}
-              className="flex items-center gap-1.5 text-xs text-sky-300 hover:text-sky-200 transition-colors"
+              className="flex items-center gap-1.5 text-xs transition-colors"
+              style={{ color: "var(--primary)" }}
             >
               <PlusIcon className="w-3.5 h-3.5" />
               Adicionar item
@@ -328,15 +361,17 @@ export default function NovoOrcamentoPage() {
 
           {itens.map((item, itemIndex) => {
             const calc = calcularItem(item);
-
             return (
               <div
                 key={item.id}
-                className="rounded-xl border border-white/10 bg-white/[0.02] p-5 flex flex-col gap-4"
+                style={sectionStyle}
+                className="flex flex-col gap-4"
               >
-                {/* header do item */}
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-white/30 w-5">
+                  <span
+                    className="text-xs w-5"
+                    style={{ color: "var(--text-muted)" }}
+                  >
                     {itemIndex + 1}.
                   </span>
                   <Input
@@ -346,24 +381,30 @@ export default function NovoOrcamentoPage() {
                       updateItemDescricao(item.id, e.target.value)
                     }
                     required
-                    className={`flex-1 ${inputClass}`}
+                    className="flex-1"
+                    style={inputStyle}
                   />
                   {itens.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeItem(item.id)}
-                      className="p-1.5 text-white/20 hover:text-red-400 transition-colors"
+                      className="p-1.5 transition-colors"
+                      style={{ color: "var(--text-faint)" }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.color = "var(--error)")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.color = "var(--text-faint)")
+                      }
                     >
                       <Trash2Icon className="w-4 h-4" />
                     </button>
                   )}
                 </div>
 
-                {/* funcionários do item */}
                 <div className="flex flex-col gap-2 ml-8">
                   {item.funcionarios.map((f, fIndex) => (
                     <div key={fIndex} className="flex items-center gap-3">
-                      {/* select de funcionário */}
                       <Select
                         value={f.funcionario_id ? String(f.funcionario_id) : ""}
                         onValueChange={(v) =>
@@ -376,19 +417,29 @@ export default function NovoOrcamentoPage() {
                           )
                         }
                       >
-                        <SelectTrigger className="bg-white/5 flex-1 border-white/10 text-white">
+                        <SelectTrigger
+                          className="flex-1"
+                          style={{ ...inputStyle, height: 36 }}
+                        >
                           <SelectValue placeholder="Selecione um funcionário" />
                         </SelectTrigger>
-                        <SelectContent className="bg-[#0d0d1a] border-white/10 text-white">
+                        <SelectContent
+                          style={{
+                            background: "var(--bg-card)",
+                            border: "1px solid var(--border)",
+                          }}
+                        >
                           {funcionarios?.map((fn) => (
-                            <SelectItem key={fn.id} value={String(fn.id)}>
+                            <SelectItem
+                              key={fn.id}
+                              value={String(fn.id)}
+                              style={{ color: "var(--text-primary)" }}
+                            >
                               {fn.name} — {formatBRL((fn.salario ?? 0) / 220)}/h
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-
-                      {/* horas */}
                       <div className="flex items-center gap-2 w-32">
                         <Input
                           type="number"
@@ -403,17 +454,29 @@ export default function NovoOrcamentoPage() {
                               Number(e.target.value),
                             )
                           }
-                          className={`w-20 ${inputClass}`}
+                          className="w-20"
+                          style={inputStyle}
                         />
-                        <span className="text-xs text-white/30">h</span>
+                        <span
+                          className="text-xs"
+                          style={{ color: "var(--text-muted)" }}
+                        >
+                          h
+                        </span>
                       </div>
-
                       <button
                         type="button"
                         onClick={() =>
                           removeFuncionarioFromItem(item.id, fIndex)
                         }
-                        className="p-1.5 text-white/20 hover:text-red-400 transition-colors"
+                        className="p-1.5 transition-colors"
+                        style={{ color: "var(--text-faint)" }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.color = "var(--error)")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.color = "var(--text-faint)")
+                        }
                       >
                         <Trash2Icon className="w-3.5 h-3.5" />
                       </button>
@@ -423,38 +486,61 @@ export default function NovoOrcamentoPage() {
                   <button
                     type="button"
                     onClick={() => addFuncionarioToItem(item.id)}
-                    className="flex items-center gap-1.5 text-xs text-white/30 hover:text-sky-300 transition-colors w-fit"
+                    className="flex items-center gap-1.5 text-xs transition-colors w-fit"
+                    style={{ color: "var(--text-muted)" }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.color = "var(--primary)")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.color = "var(--text-muted)")
+                    }
                   >
                     <UserPlusIcon className="w-3.5 h-3.5" />
                     Atribuir funcionário
                   </button>
                 </div>
 
-                {/* preview do valor do item */}
                 {item.funcionarios.length > 0 && (
-                  <div className="ml-8 flex items-center gap-6 pt-2 border-t border-white/5">
-                    <div>
-                      <p className="text-xs text-white/30">Custo base</p>
-                      <p className="text-sm text-white/50">
-                        {formatBRL(calc.custoBase)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-white/30">
-                        Com margem ({margemLucro}%)
-                      </p>
-                      <p className="text-sm text-white/50">
-                        {formatBRL(calc.comMargem)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-white/30">
-                        Com imposto ({aliquotaImposto}%)
-                      </p>
-                      <p className="text-sm text-sky-300 font-medium">
-                        {formatBRL(calc.comImposto)}
-                      </p>
-                    </div>
+                  <div
+                    className="ml-8 flex items-center gap-6 pt-2"
+                    style={{ borderTop: "1px solid var(--border)" }}
+                  >
+                    {[
+                      {
+                        label: "Custo base",
+                        value: formatBRL(calc.custoBase),
+                        highlight: false,
+                      },
+                      {
+                        label: `Com margem (${margemLucro}%)`,
+                        value: formatBRL(calc.comMargem),
+                        highlight: false,
+                      },
+                      {
+                        label: `Com imposto (${aliquotaImposto}%)`,
+                        value: formatBRL(calc.comImposto),
+                        highlight: true,
+                      },
+                    ].map((b) => (
+                      <div key={b.label}>
+                        <p
+                          className="text-xs"
+                          style={{ color: "var(--text-muted)" }}
+                        >
+                          {b.label}
+                        </p>
+                        <p
+                          className="text-sm font-medium"
+                          style={{
+                            color: b.highlight
+                              ? "var(--primary)"
+                              : "var(--text-secondary)",
+                          }}
+                        >
+                          {b.value}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -462,19 +548,33 @@ export default function NovoOrcamentoPage() {
           })}
         </div>
 
-        {/* resumo total */}
-        <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-5 flex items-center justify-between">
+        {/* total */}
+        <div
+          className="rounded-xl p-5 flex items-center justify-between"
+          style={{
+            background: "var(--primary-bg)",
+            border: "1px solid var(--primary-border)",
+          }}
+        >
           <div>
-            <p className="text-xs text-white/30 uppercase tracking-wider">
+            <p
+              className="text-xs uppercase tracking-wider"
+              style={{ color: "var(--text-muted)" }}
+            >
               Total do orçamento
             </p>
-            <p className="text-2xl font-semibold text-sky-300 mt-1">
+            <p
+              className="text-2xl font-semibold mt-1"
+              style={{ color: "var(--primary)" }}
+            >
               {formatBRL(totalOrcamento)}
             </p>
           </div>
           <div className="text-right">
-            <p className="text-xs text-white/30">Overhead aplicado</p>
-            <p className="text-sm text-white/50">
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              Overhead aplicado
+            </p>
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
               {formatBRL(overheadPorHora)}/hora
             </p>
           </div>
@@ -483,7 +583,18 @@ export default function NovoOrcamentoPage() {
         <button
           type="submit"
           disabled={isPending || !clienteId || !titulo}
-          className="w-full py-2.5 rounded-lg border border-sky-500/30 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 text-sm transition-all disabled:opacity-50"
+          className="w-full py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+          style={{
+            background: "var(--primary)",
+            color: "#ffffff",
+            border: "1px solid var(--primary)",
+          }}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.background = "var(--primary-light)")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.background = "var(--primary)")
+          }
         >
           {isPending ? "Criando..." : "Criar orçamento"}
         </button>
