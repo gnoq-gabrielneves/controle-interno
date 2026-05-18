@@ -23,11 +23,17 @@ import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 type ItemFuncionario = { funcionario_id: number; horas: number };
-type Item = { id: string; descricao: string; funcionarios: ItemFuncionario[] };
+type Item = {
+  id: string;
+  descricao: string;
+  descricao_detalhada: string;
+  funcionarios: ItemFuncionario[];
+};
 type FuncionarioExistente = { funcionario: number; horas: number };
 type OrcamentoItemExistente = {
   id: string;
   descricao: string;
+  descricao_detalhada?: string;
   orcamento_item_funcionarios: FuncionarioExistente[];
 };
 type ClienteExistente = { id: string; nome: string };
@@ -101,11 +107,19 @@ function EditarOrcamentoForm({ orcamento }: { orcamento: OrcamentoExistente }) {
 
   const [itens, setItens] = useState<Item[]>(() => {
     if (!orcamento.orcamento_itens?.length) {
-      return [{ id: crypto.randomUUID(), descricao: "", funcionarios: [] }];
+      return [
+        {
+          id: crypto.randomUUID(),
+          descricao: "",
+          descricao_detalhada: "",
+          funcionarios: [],
+        },
+      ];
     }
     return orcamento.orcamento_itens.map((item) => ({
       id: item.id,
       descricao: item.descricao,
+      descricao_detalhada: item.descricao_detalhada ?? "",
       funcionarios: (item.orcamento_item_funcionarios ?? []).map((f) => ({
         funcionario_id: f.funcionario,
         horas: f.horas,
@@ -141,7 +155,12 @@ function EditarOrcamentoForm({ orcamento }: { orcamento: OrcamentoExistente }) {
   function addItem() {
     setItens((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), descricao: "", funcionarios: [] },
+      {
+        id: crypto.randomUUID(),
+        descricao: "",
+        descricao_detalhada: "",
+        funcionarios: [],
+      },
     ]);
   }
   function removeItem(itemId: string) {
@@ -150,6 +169,16 @@ function EditarOrcamentoForm({ orcamento }: { orcamento: OrcamentoExistente }) {
   function updateItemDescricao(itemId: string, descricao: string) {
     setItens((prev) =>
       prev.map((item) => (item.id === itemId ? { ...item, descricao } : item)),
+    );
+  }
+  function updateItemDescricaoDetalhada(
+    itemId: string,
+    descricao_detalhada: string,
+  ) {
+    setItens((prev) =>
+      prev.map((item) =>
+        item.id === itemId ? { ...item, descricao_detalhada } : item,
+      ),
     );
   }
   function addFuncionarioToItem(itemId: string) {
@@ -211,6 +240,7 @@ function EditarOrcamentoForm({ orcamento }: { orcamento: OrcamentoExistente }) {
         observacoes: observacoes || undefined,
         itens: itens.map((item) => ({
           descricao: item.descricao,
+          descricao_detalhada: item.descricao_detalhada || null, // ← undefined → null
           funcionarios: item.funcionarios
             .filter((f) => f.funcionario_id !== 0)
             .map((f) => ({ funcionario: f.funcionario_id, horas: f.horas })),
@@ -226,7 +256,6 @@ function EditarOrcamentoForm({ orcamento }: { orcamento: OrcamentoExistente }) {
     color: "var(--text-primary)",
   };
   const labelClass = "text-xs uppercase tracking-wider font-medium";
-
   const sectionStyle = {
     background: "var(--bg-card)",
     border: "1px solid var(--border)",
@@ -263,7 +292,7 @@ function EditarOrcamentoForm({ orcamento }: { orcamento: OrcamentoExistente }) {
           </h1>
           <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
             Overhead/hora:{" "}
-            <span style={{ color: "var(--primary)" }}>
+            <span style={{ color: "var(--primary)", fontWeight: 500 }}>
               {formatBRL(overheadPorHora)}
             </span>
           </p>
@@ -318,7 +347,6 @@ function EditarOrcamentoForm({ orcamento }: { orcamento: OrcamentoExistente }) {
                   style={{
                     background: "var(--bg-card)",
                     border: "1px solid var(--border)",
-                    color: "var(--text-primary)",
                   }}
                 >
                   {clientes?.map((c) => (
@@ -425,6 +453,7 @@ function EditarOrcamentoForm({ orcamento }: { orcamento: OrcamentoExistente }) {
                 style={sectionStyle}
                 className="flex flex-col gap-4"
               >
+                {/* título do item */}
                 <div className="flex items-center gap-3">
                   <span
                     className="text-xs w-5"
@@ -433,7 +462,7 @@ function EditarOrcamentoForm({ orcamento }: { orcamento: OrcamentoExistente }) {
                     {itemIndex + 1}.
                   </span>
                   <Input
-                    placeholder="Descrição do item"
+                    placeholder="Título do item"
                     value={item.descricao}
                     onChange={(e) =>
                       updateItemDescricao(item.id, e.target.value)
@@ -460,7 +489,22 @@ function EditarOrcamentoForm({ orcamento }: { orcamento: OrcamentoExistente }) {
                   )}
                 </div>
 
-                <div className="flex flex-col gap-2 ml-8">
+                {/* descrição detalhada */}
+                <div className="ml-6">
+                  <textarea
+                    placeholder="Descrição detalhada do item (opcional)"
+                    value={item.descricao_detalhada}
+                    onChange={(e) =>
+                      updateItemDescricaoDetalhada(item.id, e.target.value)
+                    }
+                    rows={2}
+                    className="flex w-full rounded-md border px-3 py-2 text-sm resize-none"
+                    style={{ ...inputStyle, outline: "none" }}
+                  />
+                </div>
+
+                {/* funcionários */}
+                <div className="flex flex-col gap-2 ml-6">
                   {item.funcionarios.map((f, fIndex) => (
                     <div key={fIndex} className="flex items-center gap-3">
                       <Select
@@ -479,7 +523,11 @@ function EditarOrcamentoForm({ orcamento }: { orcamento: OrcamentoExistente }) {
                           className="flex-1"
                           style={{ ...inputStyle, height: 36 }}
                         >
-                          <SelectValue placeholder="Selecione um funcionário" />
+                          <SelectValue placeholder="Selecione um funcionário">
+                            {funcionarios?.find(
+                              (fn) => fn.id === f.funcionario_id,
+                            )?.name ?? "Selecione um funcionário"}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent
                           style={{
@@ -558,9 +606,10 @@ function EditarOrcamentoForm({ orcamento }: { orcamento: OrcamentoExistente }) {
                   </button>
                 </div>
 
+                {/* preview de cálculo */}
                 {item.funcionarios.length > 0 && (
                   <div
-                    className="ml-8 flex items-center gap-6 pt-2"
+                    className="ml-6 flex items-center gap-6 pt-2"
                     style={{ borderTop: "1px solid var(--border)" }}
                   >
                     {[

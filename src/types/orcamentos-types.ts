@@ -44,9 +44,17 @@ export type CreateOrcamentoInput = {
   observacoes?: string;
   itens: {
     descricao: string;
+    descricao_detalhada?: string | null; // ← era null, agora é opcional
     funcionarios: {
       funcionario: number;
       horas: number;
     }[];
   }[];
+};
+
+// src/services/orcamentos.ts
+export type CreateOrcamentoItemInput = {
+  descricao: string;
+  descricao_detalhada?: string | null;
+  funcionarios: { funcionario: number; horas: number }[];
 };

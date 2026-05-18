@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   itemHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     padding: 12,
     backgroundColor: brand.bgCardAlt,
     borderBottomWidth: 1,
@@ -140,8 +140,9 @@ const styles = StyleSheet.create({
   },
   itemHeaderLeft: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 8,
+    flex: 1,
   },
   itemIndex: {
     fontSize: 9,
@@ -338,6 +339,7 @@ type ItemFuncionario = {
 type OrcamentoItem = {
   id: string;
   descricao: string;
+  descricao_detalhada?: string | null;
   orcamento_item_funcionarios: ItemFuncionario[];
 };
 
@@ -439,7 +441,7 @@ export function OrcamentoPDF({
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* ── CABEÇALHO DA EMPRESA ── */}
+        {/* cabeçalho da empresa */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text
@@ -544,7 +546,7 @@ export function OrcamentoPDF({
           </View>
         </View>
 
-        {/* ── TÍTULO E STATUS ── */}
+        {/* título */}
         <View
           style={{
             flexDirection: "row",
@@ -561,7 +563,7 @@ export function OrcamentoPDF({
           </View>
         </View>
 
-        {/* ── DADOS DO CLIENTE ── */}
+        {/* cliente */}
         <View style={styles.infoRow}>
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Dados do cliente</Text>
@@ -581,7 +583,7 @@ export function OrcamentoPDF({
           </View>
         </View>
 
-        {/* ── ITENS ── */}
+        {/* itens */}
         <Text style={styles.sectionLabel}>Itens do orçamento</Text>
         {orcamento_itens.map((item, index) => {
           const calc = calcularItem(item);
@@ -590,37 +592,25 @@ export function OrcamentoPDF({
               <View style={styles.itemHeader}>
                 <View style={styles.itemHeaderLeft}>
                   <Text style={styles.itemIndex}>{index + 1}.</Text>
-                  <Text style={styles.itemDescricao}>{item.descricao}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemDescricao}>{item.descricao}</Text>
+                    {item.descricao_detalhada && (
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          color: brand.textMuted,
+                          marginTop: 2,
+                        }}
+                      >
+                        {item.descricao_detalhada}
+                      </Text>
+                    )}
+                  </View>
                 </View>
                 <Text style={styles.itemValor}>
                   {formatBRL(calc.comImposto)}
                 </Text>
               </View>
-
-              {/* {item.orcamento_item_funcionarios.map((f) => {
-                const func = Array.isArray(f.funcionario_data)
-                  ? f.funcionario_data[0]
-                  : f.funcionario_data;
-                const salarioPorHora = (func?.salario ?? 0) / 220;
-                const custoFunc = f.horas * (salarioPorHora + overheadPorHora);
-                return (
-                  <View key={f.id} style={styles.funcRow}>
-                    <View style={styles.funcLeft}>
-                      <View style={styles.funcAvatar}>
-                        <Text style={styles.funcAvatarText}>
-                          {(func?.name ?? "?").charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                      <Text style={styles.funcName}>{func?.name ?? "—"}</Text>
-                      <Text style={styles.funcDetalhe}>
-                        · {f.horas}h ×{" "}
-                        {formatBRL(salarioPorHora + overheadPorHora)}/h
-                      </Text>
-                    </View>
-                    <Text style={styles.funcValor}>{formatBRL(custoFunc)}</Text>
-                  </View>
-                );
-              })} */}
 
               <View style={styles.breakdown}>
                 <View style={styles.breakdownItem}>
@@ -640,7 +630,7 @@ export function OrcamentoPDF({
           );
         })}
 
-        {/* ── TOTAL ── */}
+        {/* total */}
         <View style={styles.totalCard} wrap={false}>
           <View>
             <Text style={styles.totalLabel}>Total do orçamento</Text>
@@ -656,7 +646,7 @@ export function OrcamentoPDF({
           </View>
         </View>
 
-        {/* ── OBSERVAÇÕES / CONDIÇÕES DE PAGAMENTO ── */}
+        {/* observações */}
         {observacoes && (
           <View wrap={false} style={styles.obsCard}>
             <Text style={styles.cardLabel}>
@@ -666,7 +656,7 @@ export function OrcamentoPDF({
           </View>
         )}
 
-        {/* ── ASSINATURAS ── */}
+        {/* assinaturas */}
         <Text style={[styles.sectionLabel, { marginTop: 8 }]}>Assinaturas</Text>
         <View wrap={false} style={styles.assinaturaSection}>
           <View style={styles.assinaturaBox}>
@@ -679,10 +669,7 @@ export function OrcamentoPDF({
             )}
             <Text style={styles.assinaturaSubLabel}>Contratante</Text>
           </View>
-
           <View style={styles.assinaturaBox}>
-            {/* substituir pela imagem quando disponível:
-            <Image src="/assinatura.png" style={{ width: 120, height: 48, objectFit: "contain" }} /> */}
             <View style={styles.assinaturaLinha} />
             <Text style={styles.assinaturaLabel}>
               GNOQ — Global Node of Quantum
@@ -694,7 +681,7 @@ export function OrcamentoPDF({
           </View>
         </View>
 
-        {/* ── RODAPÉ DE PÁGINA ── */}
+        {/* rodapé */}
         <View style={styles.footer} fixed>
           <Text style={styles.footerText}>GNOQ — Global Node of Quantum</Text>
           <Text

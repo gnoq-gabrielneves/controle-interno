@@ -30,7 +30,7 @@ export async function GetOrcamento(id: string) {
       validade_dias, observacoes, created_at,
       cliente (id, nome, email, cpf_cnpj, telefone, logradouro, numero, cidade, estado),
       orcamento_itens (
-        id, descricao,
+        id, descricao, descricao_detalhada,
         orcamento_item_funcionarios (
           id, horas,
           funcionario,
@@ -70,6 +70,7 @@ export async function CreateOrcamento(input: CreateOrcamentoInput) {
       .insert({
         orcamento: orcamento.id,
         descricao: item.descricao,
+        descricao_detalhada: item.descricao_detalhada ?? null,
         horas: item.funcionarios.reduce((acc, f) => acc + f.horas, 0),
       })
       .select()
@@ -142,6 +143,7 @@ export async function UpdateOrcamento(id: string, input: CreateOrcamentoInput) {
       .insert({
         orcamento: id,
         descricao: item.descricao,
+        descricao_detalhada: item.descricao_detalhada ?? null, // ← confirma que está aqui
         horas: item.funcionarios.reduce((acc, f) => acc + f.horas, 0),
       })
       .select()

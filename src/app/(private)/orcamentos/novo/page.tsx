@@ -23,7 +23,12 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 type ItemFuncionario = { funcionario_id: number; horas: number };
-type Item = { id: string; descricao: string; funcionarios: ItemFuncionario[] };
+type Item = {
+  id: string;
+  descricao: string;
+  descricao_detalhada: string;
+  funcionarios: ItemFuncionario[];
+};
 
 function formatBRL(value: number) {
   return new Intl.NumberFormat("pt-BR", {
@@ -47,7 +52,12 @@ export default function NovoOrcamentoPage() {
   const [validadeDias, setValidadeDias] = useState(30);
   const [observacoes, setObservacoes] = useState("");
   const [itens, setItens] = useState<Item[]>([
-    { id: crypto.randomUUID(), descricao: "", funcionarios: [] },
+    {
+      id: crypto.randomUUID(),
+      descricao: "",
+      descricao_detalhada: "",
+      funcionarios: [],
+    },
   ]);
 
   const overheadPorHora = useMemo(() => {
@@ -78,7 +88,12 @@ export default function NovoOrcamentoPage() {
   function addItem() {
     setItens((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), descricao: "", funcionarios: [] },
+      {
+        id: crypto.randomUUID(),
+        descricao: "",
+        descricao_detalhada: "",
+        funcionarios: [],
+      },
     ]);
   }
   function removeItem(id: string) {
@@ -87,6 +102,16 @@ export default function NovoOrcamentoPage() {
   function updateItemDescricao(id: string, descricao: string) {
     setItens((prev) =>
       prev.map((item) => (item.id === id ? { ...item, descricao } : item)),
+    );
+  }
+  function updateItemDescricaoDetalhada(
+    id: string,
+    descricao_detalhada: string,
+  ) {
+    setItens((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, descricao_detalhada } : item,
+      ),
     );
   }
   function addFuncionarioToItem(itemId: string) {
@@ -148,6 +173,7 @@ export default function NovoOrcamentoPage() {
         observacoes: observacoes || undefined,
         itens: itens.map((item) => ({
           descricao: item.descricao,
+          descricao_detalhada: item.descricao_detalhada || undefined,
           funcionarios: item.funcionarios
             .filter((f) => f.funcionario_id !== 0)
             .map((f) => ({ funcionario: f.funcionario_id, horas: f.horas })),
@@ -231,7 +257,6 @@ export default function NovoOrcamentoPage() {
                 style={inputStyle}
               />
             </div>
-
             <div className="flex flex-col gap-1.5">
               <Label
                 className={labelClass}
@@ -274,7 +299,6 @@ export default function NovoOrcamentoPage() {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="flex flex-col gap-1.5">
               <Label
                 className={labelClass}
@@ -367,6 +391,7 @@ export default function NovoOrcamentoPage() {
                 style={sectionStyle}
                 className="flex flex-col gap-4"
               >
+                {/* título do item */}
                 <div className="flex items-center gap-3">
                   <span
                     className="text-xs w-5"
@@ -375,7 +400,7 @@ export default function NovoOrcamentoPage() {
                     {itemIndex + 1}.
                   </span>
                   <Input
-                    placeholder="Descrição do item"
+                    placeholder="Título do item"
                     value={item.descricao}
                     onChange={(e) =>
                       updateItemDescricao(item.id, e.target.value)
@@ -402,7 +427,22 @@ export default function NovoOrcamentoPage() {
                   )}
                 </div>
 
-                <div className="flex flex-col gap-2 ml-8">
+                {/* descrição detalhada */}
+                <div className="ml-6">
+                  <textarea
+                    placeholder="Descrição detalhada do item (opcional)"
+                    value={item.descricao_detalhada}
+                    onChange={(e) =>
+                      updateItemDescricaoDetalhada(item.id, e.target.value)
+                    }
+                    rows={2}
+                    className="flex w-full rounded-md border px-3 py-2 text-sm resize-none"
+                    style={{ ...inputStyle, outline: "none" }}
+                  />
+                </div>
+
+                {/* funcionários */}
+                <div className="flex flex-col gap-2 ml-6">
                   {item.funcionarios.map((f, fIndex) => (
                     <div key={fIndex} className="flex items-center gap-3">
                       <Select
@@ -421,7 +461,11 @@ export default function NovoOrcamentoPage() {
                           className="flex-1"
                           style={{ ...inputStyle, height: 36 }}
                         >
-                          <SelectValue placeholder="Selecione um funcionário" />
+                          <SelectValue placeholder="Selecione um funcionário">
+                            {funcionarios?.find(
+                              (fn) => fn.id === f.funcionario_id,
+                            )?.name ?? "Selecione um funcionário"}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent
                           style={{
@@ -500,9 +544,10 @@ export default function NovoOrcamentoPage() {
                   </button>
                 </div>
 
+                {/* preview de cálculo */}
                 {item.funcionarios.length > 0 && (
                   <div
-                    className="ml-8 flex items-center gap-6 pt-2"
+                    className="ml-6 flex items-center gap-6 pt-2"
                     style={{ borderTop: "1px solid var(--border)" }}
                   >
                     {[

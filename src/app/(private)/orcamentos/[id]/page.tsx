@@ -71,6 +71,7 @@ type ItemFuncionario = {
 type OrcamentoItem = {
   id: string;
   descricao: string;
+  descricao_detalhada?: string | null;
   orcamento_item_funcionarios: ItemFuncionario[];
 };
 type ClienteData = {
@@ -164,7 +165,6 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
   const cliente = orcamento.cliente;
   const validade = new Date(orcamento.created_at);
   validade.setDate(validade.getDate() + orcamento.validade_dias);
-
   const st = statusConfig[orcamento.status];
 
   async function handleExportPDF() {
@@ -240,7 +240,6 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* select de status */}
           <Select
             value={orcamento.status}
             onValueChange={(v) => v && updateStatus(v as OrcamentoStatus)}
@@ -325,7 +324,7 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
       </div>
 
       <div ref={pdfRef} className="flex flex-col gap-6">
-        {/* info do cliente + detalhes */}
+        {/* cliente + detalhes */}
         <div style={sectionStyle} className="grid grid-cols-2 gap-6">
           <div>
             <p
@@ -412,29 +411,41 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
                 style={sectionStyle}
                 className="flex flex-col gap-3"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                {/* header do item */}
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
                     <span
-                      className="text-xs"
+                      className="text-xs mt-0.5"
                       style={{ color: "var(--text-muted)" }}
                     >
                       {index + 1}.
                     </span>
-                    <span
-                      className="text-sm font-medium"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      {item.descricao}
-                    </span>
+                    <div>
+                      <p
+                        className="text-sm font-medium"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        {item.descricao}
+                      </p>
+                      {item.descricao_detalhada && (
+                        <p
+                          className="text-xs mt-1 leading-relaxed"
+                          style={{ color: "var(--text-muted)" }}
+                        >
+                          {item.descricao_detalhada}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <span
-                    className="text-sm font-semibold"
+                    className="text-sm font-semibold shrink-0 ml-4"
                     style={{ color: "var(--primary)" }}
                   >
                     {formatBRL(calc.comImposto)}
                   </span>
                 </div>
 
+                {/* funcionários */}
                 {(item.orcamento_item_funcionarios ?? []).length > 0 && (
                   <div
                     className="ml-6 flex flex-col gap-1.5 pt-2"
@@ -483,6 +494,7 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
                   </div>
                 )}
 
+                {/* breakdown de cálculo */}
                 <div
                   className="ml-6 flex items-center gap-6 pt-2 text-xs"
                   style={{ borderTop: "1px solid var(--border)" }}
