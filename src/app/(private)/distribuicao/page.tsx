@@ -1,43 +1,28 @@
 "use client";
-
+import { NovaRodadaDialog } from "@/components/NovaRodada/NovaRodadaDialog";
+import { formatBRL } from "@/helpers/calculo-orcamento";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useListGastos } from "@/hooks/use-gastos";
+  useDeleteRodada,
+  useListRodadasPorMes,
+  useUpdateDistribuicaoStatus,
+} from "@/hooks/use-rodadas";
 import {
-  useAtualizarStatusPagamento,
-  useListPagamentos,
-  useUpsertPagamento,
-} from "@/hooks/use-pagamentos";
+  DistribuicaoStatus,
+  DistribuicaoTipo,
+  RodadaDistribuicao,
+} from "@/types/rodadas-types";
 import {
-  useCreateReceita,
-  useDeleteReceita,
-  useListReceitas,
-} from "@/hooks/use-receitas";
-import { useListSocietarios } from "@/hooks/use-societarios";
-import { PagamentoStatus } from "@/types/pagamentos-types";
-import {
+  CheckIcon,
+  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ChevronUpIcon,
+  ClockIcon,
   PlusIcon,
   Trash2Icon,
+  WalletIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 const MESES = [
   "Janeiro",
@@ -54,15 +39,22 @@ const MESES = [
   "Dezembro",
 ];
 
-function formatBRL(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(value);
-}
+const TIPO_LABELS: Record<DistribuicaoTipo, string> = {
+  equipe: "Equipe",
+  lucro_socio: "Lucro sócio",
+  reserva: "Reserva",
+  imposto: "Imposto",
+};
 
-const statusConfig: Record<
-  PagamentoStatus,
+const TIPO_COLORS: Record<DistribuicaoTipo, string> = {
+  equipe: "#0F4C81",
+  lucro_socio: "#7c3aed",
+  reserva: "#b45309",
+  imposto: "#64748b",
+};
+
+const STATUS_CONFIG: Record<
+  DistribuicaoStatus,
   { label: string; color: string; bg: string; border: string }
 > = {
   pendente: {
@@ -89,42 +81,9 @@ export default function DistribuicaoPage() {
   const hoje = new Date();
   const [mes, setMes] = useState(hoje.getMonth() + 1);
   const [ano, setAno] = useState(hoje.getFullYear());
-  const [openReceita, setOpenReceita] = useState(false);
-  const [formReceita, setFormReceita] = useState({
-    descricao: "",
-    valor: "",
-    mes: String(hoje.getMonth() + 1),
-    ano: String(hoje.getFullYear()),
-  });
+  const [dialogOpen, setDialogOpen] = useState(false);
 
-  const { data: receitas } = useListReceitas();
-  const { data: gastos } = useListGastos();
-  const { data: pagamentos } = useListPagamentos(mes, ano);
-  const { data: societarios } = useListSocietarios();
-  const { mutate: createReceita, isPending: criandoReceita } =
-    useCreateReceita();
-  const { mutate: deleteReceita } = useDeleteReceita();
-  const { mutate: upsertPagamento } = useUpsertPagamento();
-  const { mutate: atualizarStatus } = useAtualizarStatusPagamento();
-
-  const receitasMes = useMemo(
-    () => receitas?.filter((r) => r.mes === mes && r.ano === ano) ?? [],
-    [receitas, mes, ano],
-  );
-
-  const totalReceitas = receitasMes.reduce((acc, r) => acc + r.valor, 0);
-  const totalGastos = useMemo(
-    () =>
-      gastos?.reduce(
-        (acc, g) => acc + (g.recorrencia === "mensal" ? g.valor : g.valor / 12),
-        0,
-      ) ?? 0,
-    [gastos],
-  );
-
-  const saldo = totalReceitas - totalGastos;
-  const totalSocios = societarios?.length ?? 0;
-  const valorPorSocio = totalSocios > 0 ? saldo / totalSocios : 0;
+  const { data: rodadas, isLoading } = useListRodadasPorMes(mes, ano);
 
   function mesAnterior() {
     if (mes === 1) {
@@ -139,104 +98,24 @@ export default function DistribuicaoPage() {
     } else setMes(mes + 1);
   }
 
-  async function gerarPagamentos() {
-    if (!societarios?.length) return;
-    for (const s of societarios) {
-      const func = (
-        s.funcionario_data as
-          | { id: number; name: string; cargo: string }[]
-          | null
-      )?.[0];
-      if (!func) continue;
-      const mesAnt = mes === 1 ? 12 : mes - 1;
-      const anoAnt = mes === 1 ? ano - 1 : ano;
-      const pagAdiado = pagamentos?.find(
-        (p) =>
-          p.societario === func.id &&
-          p.mes === mesAnt &&
-          p.ano === anoAnt &&
-          p.status === "adiado",
-      );
-      upsertPagamento({
-        societario: func.id,
-        mes,
-        ano,
-        valor_base: valorPorSocio,
-        valor_total: valorPorSocio + (pagAdiado ? pagAdiado.valor_total : 0),
-        status: "pendente",
-      });
-    }
-  }
-
-  function handleAddReceita(e: React.FormEvent) {
-    e.preventDefault();
-    createReceita(
-      {
-        descricao: formReceita.descricao,
-        valor: parseFloat(formReceita.valor),
-        mes: parseInt(formReceita.mes),
-        ano: parseInt(formReceita.ano),
-      },
-      {
-        onSuccess: () => {
-          setOpenReceita(false);
-          setFormReceita({
-            descricao: "",
-            valor: "",
-            mes: String(mes),
-            ano: String(ano),
-          });
-        },
-      },
+  // ─── métricas dos cards ───
+  const metricas = useMemo(() => {
+    const all = (rodadas ?? []).flatMap((r) => r.rodada_distribuicoes ?? []);
+    const totalRecebido = (rodadas ?? []).reduce(
+      (acc, r) => acc + r.valor_recebido,
+      0,
     );
-  }
-
-  const dadosGrafico = useMemo(() => {
-    const resultado = [];
-    for (let i = 5; i >= 0; i--) {
-      let m = mes - i;
-      let a = ano;
-      if (m <= 0) {
-        m += 12;
-        a -= 1;
-      }
-      const recMes =
-        receitas
-          ?.filter((r) => r.mes === m && r.ano === a)
-          .reduce((acc, r) => acc + r.valor, 0) ?? 0;
-      resultado.push({
-        name: MESES[m - 1].slice(0, 3),
-        receitas: recMes,
-        gastos: totalGastos,
-        saldo: recMes - totalGastos,
-      });
-    }
-    return resultado;
-  }, [receitas, totalGastos, mes, ano]);
-
-  const tooltipStyle = {
-    contentStyle: {
-      background: "var(--bg-card)",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      fontSize: 12,
-    },
-    labelStyle: { color: "var(--text-primary)" },
-    itemStyle: { color: "var(--primary)" },
-  };
-
-  const sectionStyle = {
-    background: "var(--bg-card)",
-    border: "1px solid var(--border)",
-    borderRadius: 12,
-    padding: 20,
-  };
-  const inputStyle = {
-    background: "var(--bg-base)",
-    borderColor: "var(--border)",
-    color: "var(--text-primary)",
-  };
-  const labelClass = "text-xs uppercase tracking-wider font-medium";
+    const totalPago = all
+      .filter((d) => d.status === "pago")
+      .reduce((acc, d) => acc + d.valor, 0);
+    const totalPendente = all
+      .filter((d) => d.status === "pendente")
+      .reduce((acc, d) => acc + d.valor, 0);
+    const totalAdiado = all
+      .filter((d) => d.status === "adiado")
+      .reduce((acc, d) => acc + d.valor, 0);
+    return { totalRecebido, totalPago, totalPendente, totalAdiado };
+  }, [rodadas]);
 
   return (
     <div className="p-8 flex flex-col gap-6">
@@ -250,537 +129,681 @@ export default function DistribuicaoPage() {
             Distribuição
           </h1>
           <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
-            Controle de pagamentos dos sócios
+            Rodadas de pagamento por mês
           </p>
         </div>
+
         <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={mesAnterior}
+              className="p-2 rounded-lg transition-all"
+              style={{
+                border: "1px solid var(--border)",
+                color: "var(--text-muted)",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = "var(--bg-hover)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = "transparent")
+              }
+            >
+              <ChevronLeftIcon className="w-4 h-4" />
+            </button>
+            <span
+              className="text-sm font-medium min-w-36 text-center"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {MESES[mes - 1]} {ano}
+            </span>
+            <button
+              onClick={proximoMes}
+              className="p-2 rounded-lg transition-all"
+              style={{
+                border: "1px solid var(--border)",
+                color: "var(--text-muted)",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = "var(--bg-hover)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = "transparent")
+              }
+            >
+              <ChevronRightIcon className="w-4 h-4" />
+            </button>
+          </div>
+
           <button
-            onClick={mesAnterior}
-            className="p-2 rounded-lg transition-all"
+            onClick={() => setDialogOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
             style={{
-              border: "1px solid var(--border)",
-              color: "var(--text-muted)",
+              background: "var(--primary)",
+              color: "#ffffff",
+              border: "1px solid var(--primary)",
             }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = "var(--bg-hover)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = "transparent")
-            }
           >
-            <ChevronLeftIcon className="w-4 h-4" />
-          </button>
-          <span
-            className="text-sm font-medium min-w-32 text-center"
-            style={{ color: "var(--text-primary)" }}
-          >
-            {MESES[mes - 1]} {ano}
-          </span>
-          <button
-            onClick={proximoMes}
-            className="p-2 rounded-lg transition-all"
-            style={{
-              border: "1px solid var(--border)",
-              color: "var(--text-muted)",
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = "var(--bg-hover)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = "transparent")
-            }
-          >
-            <ChevronRightIcon className="w-4 h-4" />
+            <PlusIcon className="w-4 h-4" />
+            Nova rodada
           </button>
         </div>
       </div>
 
       {/* cards */}
       <div className="grid grid-cols-4 gap-4">
-        {[
-          {
-            label: "Total receitas",
-            value: formatBRL(totalReceitas),
-            color: "var(--success)",
-          },
-          {
-            label: "Total gastos",
-            value: formatBRL(totalGastos),
-            color: "var(--error)",
-          },
-          {
-            label: "Saldo",
-            value: formatBRL(saldo),
-            color: saldo >= 0 ? "var(--primary)" : "var(--error)",
-          },
-          {
-            label: "Por sócio",
-            value: formatBRL(valorPorSocio),
-            color: "var(--secondary)",
-          },
-        ].map((card) => (
+        <CardMetrica
+          label="Total recebido"
+          value={metricas.totalRecebido}
+          color="var(--primary)"
+          icon={WalletIcon}
+        />
+        <CardMetrica
+          label="Total pago"
+          value={metricas.totalPago}
+          color="var(--success, #15803d)"
+          icon={CheckIcon}
+        />
+        <CardMetrica
+          label="Total pendente"
+          value={metricas.totalPendente}
+          color="var(--warning, #b45309)"
+          icon={ClockIcon}
+        />
+        <CardMetrica
+          label="Total adiado"
+          value={metricas.totalAdiado}
+          color="var(--error, #b91c1c)"
+          icon={ClockIcon}
+        />
+      </div>
+
+      {/* lista de rodadas */}
+      {isLoading ? (
+        <div className="flex justify-center py-12">
           <div
-            key={card.label}
-            className="rounded-xl p-5 flex flex-col gap-1"
+            className="w-5 h-5 rounded-full border-2 animate-spin"
             style={{
-              background: "var(--bg-card)",
-              border: "1px solid var(--border)",
+              borderColor: "var(--primary-border)",
+              borderTopColor: "var(--primary)",
             }}
-          >
-            <p
-              className="text-xs uppercase tracking-wider"
-              style={{ color: "var(--text-muted)" }}
-            >
-              {card.label}
-            </p>
-            <p className="text-2xl font-semibold" style={{ color: card.color }}>
-              {card.value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* gráfico + receitas */}
-      <div className="grid grid-cols-2 gap-4">
-        <div style={sectionStyle} className="flex flex-col gap-4">
-          <p
-            className="text-xs uppercase tracking-wider"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Últimos 6 meses
-          </p>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={dadosGrafico} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis
-                dataKey="name"
-                tick={{ fontSize: 10, fill: "var(--text-muted)" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: "var(--text-muted)" }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-              />
-              <Tooltip
-                {...tooltipStyle}
-                formatter={(value) => [formatBRL(Number(value)), ""]}
-              />
-              <Bar
-                dataKey="receitas"
-                name="Receitas"
-                fill="#15803d"
-                radius={[4, 4, 0, 0]}
-              />
-              <Bar
-                dataKey="gastos"
-                name="Gastos"
-                fill="#b91c1c"
-                radius={[4, 4, 0, 0]}
-              />
-              <Bar dataKey="saldo" name="Saldo" radius={[4, 4, 0, 0]}>
-                {dadosGrafico.map((entry, index) => (
-                  <Cell
-                    key={index}
-                    fill={entry.saldo >= 0 ? "#0F4C81" : "#b45309"}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          <div className="flex gap-4">
-            {[
-              { color: "#15803d", label: "Receitas" },
-              { color: "#b91c1c", label: "Gastos" },
-              { color: "#0F4C81", label: "Saldo" },
-            ].map((l) => (
-              <div key={l.label} className="flex items-center gap-1.5">
-                <div
-                  className="w-2 h-2 rounded-full"
-                  style={{ background: l.color }}
-                />
-                <span
-                  className="text-xs"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  {l.label}
-                </span>
-              </div>
-            ))}
-          </div>
+          />
         </div>
-
-        <div style={sectionStyle} className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <p
-              className="text-xs uppercase tracking-wider"
-              style={{ color: "var(--text-muted)" }}
-            >
-              Receitas de {MESES[mes - 1]}
-            </p>
-            <button
-              onClick={() => setOpenReceita(true)}
-              className="flex items-center gap-1.5 text-xs transition-colors"
-              style={{ color: "var(--primary)" }}
-            >
-              <PlusIcon className="w-3.5 h-3.5" />
-              Adicionar
-            </button>
-          </div>
-          <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
-            {receitasMes.length === 0 && (
-              <p className="text-sm" style={{ color: "var(--text-faint)" }}>
-                Nenhuma receita neste mês.
-              </p>
-            )}
-            {receitasMes.map((r) => (
-              <div
-                key={r.id}
-                className="flex items-center justify-between py-2"
-                style={{ borderBottom: "1px solid var(--border)" }}
-              >
-                <p className="text-sm" style={{ color: "var(--text-primary)" }}>
-                  {r.descricao}
-                </p>
-                <div className="flex items-center gap-3">
-                  <span
-                    className="text-sm font-medium"
-                    style={{ color: "var(--success)" }}
-                  >
-                    {formatBRL(r.valor)}
-                  </span>
-                  <button
-                    onClick={() => deleteReceita(r.id)}
-                    className="p-1 transition-colors"
-                    style={{ color: "var(--text-faint)" }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.color = "var(--error)")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.color = "var(--text-faint)")
-                    }
-                  >
-                    <Trash2Icon className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* pagamentos */}
-      <div style={sectionStyle} className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <p
-            className="text-xs uppercase tracking-wider"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Pagamentos — {MESES[mes - 1]} {ano}
-          </p>
-          <button
-            onClick={gerarPagamentos}
-            className="flex items-center gap-1.5 text-xs transition-colors"
-            style={{ color: "var(--primary)" }}
-          >
-            <PlusIcon className="w-3.5 h-3.5" />
-            Gerar pagamentos do mês
-          </button>
-        </div>
-
-        {!pagamentos?.length ? (
-          <p className="text-sm" style={{ color: "var(--text-faint)" }}>
-            Clique em - Gerar pagamentos do mês - para calcular.
-          </p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {pagamentos.map((p) => {
-              const func = p.funcionario as
-                | { id: number; name: string; cargo: string }
-                | undefined;
-              const st = statusConfig[p.status];
-              const temAcumulado = p.valor_total > p.valor_base;
-
-              return (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-between p-4 rounded-lg"
-                  style={{
-                    border: "1px solid var(--border)",
-                    background: "var(--bg-base)",
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium"
-                      style={{
-                        background: "var(--primary-bg)",
-                        border: "1px solid var(--primary-border)",
-                        color: "var(--primary)",
-                      }}
-                    >
-                      {(func?.name ?? "?").charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <p
-                        className="text-sm font-medium"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        {func?.name ?? "—"}
-                      </p>
-                      <p
-                        className="text-xs"
-                        style={{ color: "var(--text-muted)" }}
-                      >
-                        {func?.cargo ?? "—"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
-                      <p
-                        className="text-xs"
-                        style={{ color: "var(--text-muted)" }}
-                      >
-                        Base
-                      </p>
-                      <p
-                        className="text-sm"
-                        style={{ color: "var(--text-secondary)" }}
-                      >
-                        {formatBRL(p.valor_base)}
-                      </p>
-                    </div>
-                    {temAcumulado && (
-                      <div className="text-right">
-                        <p
-                          className="text-xs"
-                          style={{ color: "var(--warning)" }}
-                        >
-                          Acumulado
-                        </p>
-                        <p
-                          className="text-sm font-medium"
-                          style={{ color: "var(--warning)" }}
-                        >
-                          {formatBRL(p.valor_total - p.valor_base)}
-                        </p>
-                      </div>
-                    )}
-                    <div className="text-right">
-                      <p
-                        className="text-xs"
-                        style={{ color: "var(--text-muted)" }}
-                      >
-                        Total
-                      </p>
-                      <p
-                        className="text-sm font-semibold"
-                        style={{ color: "var(--primary)" }}
-                      >
-                        {formatBRL(p.valor_total)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="text-xs px-2 py-1 rounded-full"
-                      style={{
-                        color: st.color,
-                        background: st.bg,
-                        border: `1px solid ${st.border}`,
-                      }}
-                    >
-                      {st.label}
-                    </span>
-                    {p.status !== "pago" && (
-                      <button
-                        onClick={() =>
-                          atualizarStatus({ id: p.id, status: "pago" })
-                        }
-                        className="text-xs px-3 py-1.5 rounded-lg transition-all"
-                        style={{
-                          color: "var(--success)",
-                          background: "var(--success-bg)",
-                          border: "1px solid var(--success-border)",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.opacity = "0.8")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.opacity = "1")
-                        }
-                      >
-                        Marcar pago
-                      </button>
-                    )}
-                    {p.status === "pendente" && (
-                      <button
-                        onClick={() =>
-                          atualizarStatus({ id: p.id, status: "adiado" })
-                        }
-                        className="text-xs px-3 py-1.5 rounded-lg transition-all"
-                        style={{
-                          color: "var(--error)",
-                          background: "var(--error-bg)",
-                          border: "1px solid var(--error-border)",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.opacity = "0.8")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.opacity = "1")
-                        }
-                      >
-                        Adiar
-                      </button>
-                    )}
-                    {p.status === "pago" && (
-                      <button
-                        onClick={() =>
-                          atualizarStatus({ id: p.id, status: "pendente" })
-                        }
-                        className="text-xs px-3 py-1.5 rounded-lg transition-all"
-                        style={{
-                          border: "1px solid var(--border)",
-                          color: "var(--text-muted)",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.backgroundColor =
-                            "var(--bg-hover)")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.backgroundColor =
-                            "transparent")
-                        }
-                      >
-                        Desfazer
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* dialog receita */}
-      <Dialog open={openReceita} onOpenChange={setOpenReceita}>
-        <DialogContent
+      ) : !rodadas || rodadas.length === 0 ? (
+        <div
+          className="rounded-xl p-12 text-center"
           style={{
             background: "var(--bg-card)",
             border: "1px solid var(--border)",
           }}
         >
-          <DialogHeader>
-            <DialogTitle style={{ color: "var(--text-primary)" }}>
-              Nova receita
-            </DialogTitle>
-          </DialogHeader>
-          <form
-            onSubmit={handleAddReceita}
-            className="flex flex-col gap-4 mt-2"
+          <WalletIcon
+            className="w-8 h-8 mx-auto mb-2"
+            style={{ color: "var(--text-faint)" }}
+          />
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            Nenhuma rodada de pagamento em {MESES[mes - 1]} {ano}
+          </p>
+          <button
+            onClick={() => setDialogOpen(true)}
+            className="mt-3 text-sm font-medium"
+            style={{ color: "var(--primary)" }}
           >
-            <div className="flex flex-col gap-1.5">
-              <Label
-                className={labelClass}
-                style={{ color: "var(--text-muted)" }}
+            + Criar a primeira
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {rodadas.map((r) => (
+            <RodadaCard key={r.id} rodada={r} />
+          ))}
+        </div>
+      )}
+
+      <NovaRodadaDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+function CardMetrica({
+  label,
+  value,
+  color,
+  icon: Icon,
+}: {
+  label: string;
+  value: number;
+  color: string;
+  icon: typeof WalletIcon;
+}) {
+  return (
+    <div
+      className="rounded-xl p-5 flex flex-col gap-1"
+      style={{
+        background: "var(--bg-card)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <p
+          className="text-xs uppercase tracking-wider"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {label}
+        </p>
+        <Icon className="w-4 h-4" style={{ color }} />
+      </div>
+      <p
+        className="text-2xl font-semibold"
+        style={{ color, fontVariantNumeric: "tabular-nums" }}
+      >
+        {formatBRL(value)}
+      </p>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// CARD DE UMA RODADA — expansível
+// ──────────────────────────────────────────────────────────────────
+function RodadaCard({
+  rodada,
+}: {
+  rodada: import("@/types/rodadas-types").RodadaPagamento;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const { mutate: deleteRodada } = useDeleteRodada();
+
+  const distribuicoes = rodada.rodada_distribuicoes ?? [];
+
+  // sócio + equipe agregados por funcionário pra exibição
+  // (sócios que trabalham aparecem com soma de "equipe" + "lucro_socio")
+  const distribuicoesAgrupadas = useMemo(() => {
+    const map: Record<
+      string,
+      {
+        key: string;
+        funcionarioId: number | null;
+        nome: string;
+        valorEquipe: number;
+        valorLucro: number;
+        valor: number;
+        statusEquipe?: DistribuicaoStatus;
+        statusLucro?: DistribuicaoStatus;
+        idsByTipo: Partial<Record<DistribuicaoTipo, string>>;
+      }
+    > = {};
+
+    distribuicoes.forEach((d) => {
+      const isPessoa = d.tipo === "equipe" || d.tipo === "lucro_socio";
+      const key = isPessoa ? `func-${d.funcionario}` : `tipo-${d.tipo}`;
+
+      const nome =
+        d.tipo === "reserva"
+          ? "Reserva da empresa"
+          : d.tipo === "imposto"
+            ? "Imposto"
+            : (pickFuncName(d) ?? "—");
+
+      if (!map[key]) {
+        map[key] = {
+          key,
+          funcionarioId: d.funcionario,
+          nome,
+          valorEquipe: 0,
+          valorLucro: 0,
+          valor: 0,
+          idsByTipo: {},
+        };
+      }
+
+      const slot = map[key];
+      slot.valor += d.valor;
+      slot.idsByTipo[d.tipo] = d.id;
+
+      if (d.tipo === "equipe") {
+        slot.valorEquipe = d.valor;
+        slot.statusEquipe = d.status;
+      } else if (d.tipo === "lucro_socio") {
+        slot.valorLucro = d.valor;
+        slot.statusLucro = d.status;
+      }
+    });
+
+    // ordena: pessoas primeiro (com sócios primeiro), depois reserva, depois imposto
+    return Object.values(map).sort((a, b) => {
+      const order = (k: string) => {
+        if (k.startsWith("func-")) return 0;
+        if (k === "tipo-reserva") return 1;
+        if (k === "tipo-imposto") return 2;
+        return 3;
+      };
+      return order(a.key) - order(b.key);
+    });
+  }, [distribuicoes]);
+
+  const totalDistribuido = distribuicoes.reduce((acc, d) => acc + d.valor, 0);
+  const totalPago = distribuicoes
+    .filter((d) => d.status === "pago")
+    .reduce((acc, d) => acc + d.valor, 0);
+  const progresso =
+    totalDistribuido > 0 ? (totalPago / totalDistribuido) * 100 : 0;
+
+  return (
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{
+        background: "var(--bg-card)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      {/* header da rodada */}
+      <div
+        className="px-5 py-4 flex items-center justify-between cursor-pointer transition-colors"
+        onClick={() => setExpanded(!expanded)}
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.backgroundColor = "var(--bg-hover)")
+        }
+        onMouseLeave={(e) =>
+          (e.currentTarget.style.backgroundColor = "transparent")
+        }
+      >
+        <div className="flex items-center gap-4 flex-1">
+          <div
+            className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+            style={{
+              background: "var(--primary-bg)",
+              border: "1px solid var(--primary-border)",
+            }}
+          >
+            <WalletIcon
+              className="w-5 h-5"
+              style={{ color: "var(--primary)" }}
+            />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p
+                className="text-sm font-medium truncate"
+                style={{ color: "var(--text-primary)" }}
               >
-                Descrição
-              </Label>
-              <Input
-                placeholder="Ex: Projeto website"
-                value={formReceita.descricao}
-                onChange={(e) =>
-                  setFormReceita((p) => ({ ...p, descricao: e.target.value }))
-                }
-                required
-                style={inputStyle}
+                {rodada.descricao}
+              </p>
+              {rodada.orcamento_data && (
+                <span
+                  className="text-xs px-1.5 py-0.5 rounded"
+                  style={{
+                    background: "var(--bg-card-alt)",
+                    color: "var(--text-muted)",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  Orçamento
+                </span>
+              )}
+            </div>
+            <p
+              className="text-xs mt-0.5"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {new Date(rodada.data_recebimento).toLocaleDateString("pt-BR", {
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+              })}
+              {rodada.orcamento_data && ` · ${rodada.orcamento_data.titulo}`}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-5">
+          <div className="text-right">
+            <p
+              className="text-xs uppercase tracking-wider"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Recebido
+            </p>
+            <p
+              className="text-base font-semibold"
+              style={{
+                color: "var(--primary)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {formatBRL(rodada.valor_recebido)}
+            </p>
+          </div>
+
+          {/* mini progress bar */}
+          <div className="flex flex-col gap-1 items-end">
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              {progresso.toFixed(0)}% pago
+            </p>
+            <div
+              className="w-24 h-1.5 rounded-full overflow-hidden"
+              style={{ background: "var(--bg-card-alt)" }}
+            >
+              <div
+                className="h-full transition-all"
+                style={{
+                  width: `${progresso}%`,
+                  background: "var(--success, #15803d)",
+                }}
               />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label
-                className={labelClass}
-                style={{ color: "var(--text-muted)" }}
-              >
-                Valor
-              </Label>
-              <Input
-                type="number"
-                step="0.01"
-                placeholder="0,00"
-                value={formReceita.valor}
-                onChange={(e) =>
-                  setFormReceita((p) => ({ ...p, valor: e.target.value }))
-                }
-                required
-                style={inputStyle}
+          </div>
+
+          {expanded ? (
+            <ChevronUpIcon
+              className="w-4 h-4"
+              style={{ color: "var(--text-muted)" }}
+            />
+          ) : (
+            <ChevronDownIcon
+              className="w-4 h-4"
+              style={{ color: "var(--text-muted)" }}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* corpo expansível */}
+      {expanded && (
+        <div style={{ borderTop: "1px solid var(--border)" }}>
+          {distribuicoesAgrupadas.length === 0 ? (
+            <p
+              className="text-sm py-6 text-center"
+              style={{ color: "var(--text-faint)" }}
+            >
+              Sem distribuições cadastradas.
+            </p>
+          ) : (
+            distribuicoesAgrupadas.map((d, i) => (
+              <DistribuicaoLinha
+                key={d.key}
+                grupo={d}
+                distribuicoes={distribuicoes}
+                isLast={i === distribuicoesAgrupadas.length - 1}
               />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label
-                  className={labelClass}
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Mês
-                </Label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="12"
-                  value={formReceita.mes}
-                  onChange={(e) =>
-                    setFormReceita((p) => ({ ...p, mes: e.target.value }))
-                  }
-                  required
-                  style={inputStyle}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label
-                  className={labelClass}
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Ano
-                </Label>
-                <Input
-                  type="number"
-                  value={formReceita.ano}
-                  onChange={(e) =>
-                    setFormReceita((p) => ({ ...p, ano: e.target.value }))
-                  }
-                  required
-                  style={inputStyle}
-                />
-              </div>
+            ))
+          )}
+
+          {/* ações da rodada */}
+          <div
+            className="flex justify-between items-center px-5 py-3"
+            style={{
+              background: "var(--bg-card-alt)",
+              borderTop: "1px solid var(--border)",
+            }}
+          >
+            <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+              {rodada.observacoes ? (
+                <span>📝 {rodada.observacoes}</span>
+              ) : (
+                <span>—</span>
+              )}
             </div>
             <button
-              type="submit"
-              disabled={criandoReceita}
-              className="w-full py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (
+                  confirm(
+                    `Excluir esta rodada? Todas as distribuições (${distribuicoes.length}) serão removidas.`,
+                  )
+                ) {
+                  deleteRodada(rodada.id);
+                }
+              }}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded transition-all"
               style={{
-                background: "var(--primary)",
-                color: "#ffffff",
-                border: "1px solid var(--primary)",
+                border: "1px solid var(--error-border, rgba(185,28,28,0.30))",
+                color: "var(--error, #b91c1c)",
               }}
               onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "var(--primary-light)")
+                (e.currentTarget.style.backgroundColor =
+                  "var(--error-bg, rgba(185,28,28,0.10))")
               }
               onMouseLeave={(e) =>
-                (e.currentTarget.style.background = "var(--primary)")
+                (e.currentTarget.style.backgroundColor = "transparent")
               }
             >
-              {criandoReceita ? "Adicionando..." : "Adicionar receita"}
+              <Trash2Icon className="w-3 h-3" />
+              Excluir rodada
             </button>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function pickFuncName(d: RodadaDistribuicao): string | null {
+  if (!d.funcionario_data) return null;
+  const fd = d.funcionario_data;
+  return Array.isArray(fd) ? (fd[0]?.name ?? null) : fd.name;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Linha de distribuição (pessoa, reserva ou imposto)
+// Sócios trabalhando aparecem com soma "equipe + lucro_socio"
+// ──────────────────────────────────────────────────────────────────
+function DistribuicaoLinha({
+  grupo,
+  distribuicoes,
+  isLast,
+}: {
+  grupo: {
+    key: string;
+    funcionarioId: number | null;
+    nome: string;
+    valorEquipe: number;
+    valorLucro: number;
+    valor: number;
+    statusEquipe?: DistribuicaoStatus;
+    statusLucro?: DistribuicaoStatus;
+    idsByTipo: Partial<Record<DistribuicaoTipo, string>>;
+  };
+  distribuicoes: RodadaDistribuicao[];
+  isLast: boolean;
+}) {
+  const { mutate: updateStatus } = useUpdateDistribuicaoStatus();
+
+  // resolve qual ID da distribuição estamos editando
+  // se a pessoa tem 2 linhas (equipe + lucro), mostramos um botão "marcar
+  // pago" pra cada uma separadamente
+  const isPessoa = grupo.idsByTipo.equipe || grupo.idsByTipo.lucro_socio;
+  const isReserva = grupo.idsByTipo.reserva;
+  const isImposto = grupo.idsByTipo.imposto;
+
+  // descobrir tipo principal da linha
+  const tipoPrincipal: DistribuicaoTipo = isReserva
+    ? "reserva"
+    : isImposto
+      ? "imposto"
+      : grupo.idsByTipo.equipe
+        ? "equipe"
+        : "lucro_socio";
+
+  const cor = TIPO_COLORS[tipoPrincipal];
+
+  // se for pessoa com 2 tipos, status individual; se só 1, único status
+  function renderStatusBlocks() {
+    if (isPessoa && grupo.idsByTipo.equipe && grupo.idsByTipo.lucro_socio) {
+      // sócio trabalhando: 2 botões
+      return (
+        <div className="flex flex-col gap-1.5 items-end">
+          <StatusBotao
+            label="Trabalho"
+            valor={grupo.valorEquipe}
+            status={grupo.statusEquipe!}
+            onChange={(s) =>
+              updateStatus({ id: grupo.idsByTipo.equipe!, status: s })
+            }
+          />
+          <StatusBotao
+            label="Lucro"
+            valor={grupo.valorLucro}
+            status={grupo.statusLucro!}
+            onChange={(s) =>
+              updateStatus({ id: grupo.idsByTipo.lucro_socio!, status: s })
+            }
+          />
+        </div>
+      );
+    }
+
+    // caso normal: 1 distribuição
+    const dist = distribuicoes.find(
+      (d) =>
+        d.id === grupo.idsByTipo.equipe ||
+        d.id === grupo.idsByTipo.lucro_socio ||
+        d.id === grupo.idsByTipo.reserva ||
+        d.id === grupo.idsByTipo.imposto,
+    );
+    if (!dist) return null;
+    return (
+      <StatusBotao
+        valor={grupo.valor}
+        status={dist.status}
+        onChange={(s) => updateStatus({ id: dist.id, status: s })}
+      />
+    );
+  }
+
+  return (
+    <div
+      className="flex items-center justify-between px-5 py-3"
+      style={{
+        borderBottom: isLast ? "none" : "1px solid var(--border)",
+      }}
+    >
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div
+          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium shrink-0"
+          style={{
+            background: `${cor}15`,
+            border: `1px solid ${cor}40`,
+            color: cor,
+          }}
+        >
+          {grupo.nome.charAt(0).toUpperCase()}
+        </div>
+        <div className="min-w-0">
+          <p
+            className="text-sm font-medium truncate"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {grupo.nome}
+          </p>
+          {isPessoa && grupo.idsByTipo.equipe && grupo.idsByTipo.lucro_socio ? (
+            <p
+              className="text-xs mt-0.5"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Sócio · {formatBRL(grupo.valorEquipe)} (trabalho) +{" "}
+              {formatBRL(grupo.valorLucro)} (lucro)
+            </p>
+          ) : (
+            <p
+              className="text-xs mt-0.5"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {TIPO_LABELS[tipoPrincipal]}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <p
+          className="text-sm font-semibold"
+          style={{ color: cor, fontVariantNumeric: "tabular-nums" }}
+        >
+          {formatBRL(grupo.valor)}
+        </p>
+        {renderStatusBlocks()}
+      </div>
+    </div>
+  );
+}
+
+function StatusBotao({
+  label,
+  valor,
+  status,
+  onChange,
+}: {
+  label?: string;
+  valor?: number;
+  status: DistribuicaoStatus;
+  onChange: (s: DistribuicaoStatus) => void;
+}) {
+  const st = STATUS_CONFIG[status];
+
+  return (
+    <div className="flex items-center gap-2">
+      {label && (
+        <span className="text-xs" style={{ color: "var(--text-faint)" }}>
+          {label}
+          {valor != null && ` · ${formatBRL(valor)}`}
+        </span>
+      )}
+      <div className="flex gap-1">
+        <span
+          className="text-xs px-2 py-1 rounded-full"
+          style={{
+            color: st.color,
+            background: st.bg,
+            border: `1px solid ${st.border}`,
+          }}
+        >
+          {st.label}
+        </span>
+        {status !== "pago" && (
+          <button
+            onClick={() => onChange("pago")}
+            className="text-xs px-2 py-1 rounded transition-all"
+            style={{
+              color: "var(--success, #15803d)",
+              background: "var(--success-bg, rgba(21,128,61,0.10))",
+              border: "1px solid var(--success-border, rgba(21,128,61,0.30))",
+            }}
+            title="Marcar como pago"
+          >
+            ✓
+          </button>
+        )}
+        {status === "pendente" && (
+          <button
+            onClick={() => onChange("adiado")}
+            className="text-xs px-2 py-1 rounded transition-all"
+            style={{
+              color: "var(--error, #b91c1c)",
+              background: "var(--error-bg, rgba(185,28,28,0.10))",
+              border: "1px solid var(--error-border, rgba(185,28,28,0.30))",
+            }}
+            title="Adiar"
+          >
+            ⏸
+          </button>
+        )}
+        {status === "pago" && (
+          <button
+            onClick={() => onChange("pendente")}
+            className="text-xs px-2 py-1 rounded transition-all"
+            style={{
+              border: "1px solid var(--border)",
+              color: "var(--text-muted)",
+            }}
+            title="Desfazer"
+          >
+            ↶
+          </button>
+        )}
+      </div>
     </div>
   );
 }
