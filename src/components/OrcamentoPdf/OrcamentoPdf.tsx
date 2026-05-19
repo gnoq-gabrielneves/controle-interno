@@ -1,4 +1,11 @@
-import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import {
+  Document,
+  Image,
+  Page,
+  StyleSheet,
+  Text,
+  View,
+} from "@react-pdf/renderer";
 
 const brand = {
   bg: "#ffffff",
@@ -45,6 +52,14 @@ const styles = StyleSheet.create({
     borderBottomColor: brand.sky,
   },
   headerLeft: { flex: 1 },
+  // logo: altura fixa, largura proporcional. Ajuste maxWidth/height aqui se necessário
+  logo: {
+    height: 50,
+    width: "auto",
+    maxWidth: 180,
+    marginBottom: 12,
+    objectFit: "contain",
+  },
   titulo: {
     fontSize: 20,
     fontFamily: "Helvetica-Bold",
@@ -54,16 +69,6 @@ const styles = StyleSheet.create({
   subtitulo: {
     fontSize: 10,
     color: brand.textMuted,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  statusText: {
-    fontSize: 9,
-    fontFamily: "Helvetica-Bold",
   },
   infoRow: {
     flexDirection: "row",
@@ -96,23 +101,6 @@ const styles = StyleSheet.create({
     color: brand.textMuted,
     marginBottom: 2,
   },
-  detailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 6,
-    paddingBottom: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: brand.borderLight,
-  },
-  detailLabel: {
-    fontSize: 10,
-    color: brand.textMuted,
-  },
-  detailValue: {
-    fontSize: 10,
-    fontFamily: "Helvetica-Bold",
-    color: brand.text,
-  },
   sectionLabel: {
     fontSize: 8,
     fontFamily: "Helvetica-Bold",
@@ -127,16 +115,11 @@ const styles = StyleSheet.create({
     borderColor: brand.border,
     borderRadius: 8,
     marginBottom: 10,
-    overflow: "hidden",
-  },
-  itemHeader: {
+    padding: 14,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    padding: 12,
-    backgroundColor: brand.bgCardAlt,
-    borderBottomWidth: 1,
-    borderBottomColor: brand.border,
+    gap: 12,
   },
   itemHeaderLeft: {
     flexDirection: "row",
@@ -154,76 +137,18 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
     color: brand.text,
   },
+  itemDetalhe: {
+    fontSize: 9,
+    color: brand.textMuted,
+    marginTop: 4,
+    lineHeight: 1.5,
+  },
   itemValor: {
     fontSize: 12,
     fontFamily: "Helvetica-Bold",
     color: brand.sky,
-  },
-  funcRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: brand.borderLight,
-  },
-  funcLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  funcAvatar: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: brand.skyLight,
-    borderWidth: 1,
-    borderColor: brand.skyBorder,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  funcAvatarText: {
-    fontSize: 8,
-    fontFamily: "Helvetica-Bold",
-    color: brand.sky,
-  },
-  funcName: {
-    fontSize: 10,
-    color: brand.text,
-  },
-  funcDetalhe: {
-    fontSize: 9,
-    color: brand.textMuted,
-  },
-  funcValor: {
-    fontSize: 10,
-    fontFamily: "Helvetica-Bold",
-    color: brand.textMuted,
-  },
-  breakdown: {
-    flexDirection: "row",
-    gap: 16,
-    padding: 10,
-    paddingHorizontal: 12,
-    backgroundColor: brand.bg,
-  },
-  breakdownItem: {
-    flexDirection: "row",
-    gap: 4,
-  },
-  breakdownLabel: {
-    fontSize: 8,
-    color: brand.textFaint,
-  },
-  breakdownValue: {
-    fontSize: 8,
-    color: brand.textMuted,
-  },
-  breakdownValueHighlight: {
-    fontSize: 8,
-    fontFamily: "Helvetica-Bold",
-    color: brand.sky,
+    minWidth: 80,
+    textAlign: "right",
   },
   obsCard: {
     backgroundColor: brand.bgCard,
@@ -298,15 +223,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 2,
   },
-  assinaturaTitle: {
-    fontSize: 8,
-    fontFamily: "Helvetica-Bold",
-    color: brand.textFaint,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 16,
-    textAlign: "center",
-  },
   footer: {
     position: "absolute",
     bottom: 16,
@@ -324,23 +240,19 @@ const styles = StyleSheet.create({
   },
 });
 
-type FuncionarioData = {
-  id: number;
-  name: string;
-  salario: number;
-};
-
-type ItemFuncionario = {
+// ─── tipos vindos da página de detalhe ───
+type ItemFuncionarioRaw = {
   id: string;
-  horas: number;
-  funcionario_data: FuncionarioData | FuncionarioData[] | null;
+  meses_alocados: number;
+  salario_snapshot: number;
 };
 
 type OrcamentoItem = {
   id: string;
   descricao: string;
-  descricao_detalhada?: string | null;
-  orcamento_item_funcionarios: ItemFuncionario[];
+  descricao_detalhada: string | null;
+  valor_manual: number | null;
+  orcamento_item_funcionarios: ItemFuncionarioRaw[];
 };
 
 type ClienteData = {
@@ -353,19 +265,46 @@ type ClienteData = {
   estado: string | null;
 };
 
+// breakdown vindo do helper (calcularOrcamento)
+type CalculoResultado = {
+  custoEquipe: number;
+  valorBuffer: number;
+  custoProtegido: number;
+  valorMargem: number;
+  subtotal: number;
+  valorImposto: number;
+  valorCalculado: number;
+  valorCobrado: number;
+  somaItens: number | null;
+  divergencia: number;
+  temDivergencia: boolean;
+};
+
+// equipe consolidada vinda da página de detalhe (não é renderizada no PDF
+// mas tipo continua aqui pra compatibilidade da interface)
+type EquipeConsolidada = {
+  id: number;
+  name: string;
+  salario: number;
+  meses: number;
+  total: number;
+};
+
 type OrcamentoPDFProps = {
   numero: number | null;
   titulo: string;
   status: string;
+  tipo: "projeto_fechado" | "por_modulo";
   cliente: ClienteData | null;
   margem_lucro: number;
   aliquota_imposto: number;
+  buffer_atraso: number;
   validade_dias: number;
   observacoes: string | null;
   created_at: string;
   orcamento_itens: OrcamentoItem[];
-  overheadPorHora: number;
-  totalOrcamento: number;
+  equipeConsolidada: EquipeConsolidada[];
+  calculo: CalculoResultado;
 };
 
 function formatBRL(value: number) {
@@ -375,68 +314,28 @@ function formatBRL(value: number) {
   }).format(value);
 }
 
-const statusMap: Record<
-  string,
-  { label: string; color: string; bg: string; border: string }
-> = {
-  rascunho: {
-    label: "Rascunho",
-    color: brand.gray,
-    bg: brand.grayLight,
-    border: brand.grayBorder,
-  },
-  enviado: {
-    label: "Enviado",
-    color: brand.sky,
-    bg: brand.skyLight,
-    border: brand.skyBorder,
-  },
-  aprovado: {
-    label: "Aprovado",
-    color: brand.green,
-    bg: brand.greenLight,
-    border: brand.greenBorder,
-  },
-  recusado: {
-    label: "Recusado",
-    color: brand.red,
-    bg: brand.redLight,
-    border: brand.redBorder,
-  },
-};
+// resolve URL absoluta da logo (next.js serve /public na raiz)
+function getLogoSrc(): string {
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/gnoq2026.png`;
+  }
+  // fallback pra SSR (caso seja renderizado no server algum dia)
+  return "/gnoq2026.png";
+}
 
 export function OrcamentoPDF({
   numero,
   titulo,
-  status,
+  tipo,
   cliente,
-  margem_lucro,
-  aliquota_imposto,
   validade_dias,
   observacoes,
   created_at,
   orcamento_itens,
-  overheadPorHora,
-  totalOrcamento,
+  calculo,
 }: OrcamentoPDFProps) {
-  const st = statusMap[status] ?? statusMap.rascunho;
   const validade = new Date(created_at);
   validade.setDate(validade.getDate() + validade_dias);
-
-  function calcularItem(item: OrcamentoItem) {
-    const custoBase = item.orcamento_item_funcionarios.reduce((acc, f) => {
-      const func = Array.isArray(f.funcionario_data)
-        ? f.funcionario_data[0]
-        : f.funcionario_data;
-      if (!func) return acc;
-      return acc + f.horas * (func.salario / 220 + overheadPorHora);
-    }, 0);
-    return {
-      custoBase,
-      comMargem: custoBase * (1 + margem_lucro),
-      comImposto: custoBase * (1 + margem_lucro) * (1 + aliquota_imposto),
-    };
-  }
 
   return (
     <Document>
@@ -444,27 +343,9 @@ export function OrcamentoPDF({
         {/* cabeçalho da empresa */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text
-              style={{
-                fontSize: 24,
-                fontFamily: "Helvetica-Bold",
-                color: brand.sky,
-                letterSpacing: 3,
-                marginBottom: 2,
-              }}
-            >
-              GNOQ
-            </Text>
-            <Text
-              style={{
-                fontSize: 8,
-                color: brand.textFaint,
-                letterSpacing: 1.5,
-                marginBottom: 10,
-              }}
-            >
-              GLOBAL NODE OF QUANTUM
-            </Text>
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
+            <Image src={getLogoSrc()} style={styles.logo} />
+
             <Text
               style={{ fontSize: 9, color: brand.textMuted, marginBottom: 2 }}
             >
@@ -473,7 +354,7 @@ export function OrcamentoPDF({
             <Text
               style={{ fontSize: 9, color: brand.textMuted, marginBottom: 2 }}
             >
-              Rua das Industrias, 500 — Novo Eldorado — Contagem/MG — CEP
+              Rua das Indústrias, 500 — Novo Eldorado — Contagem/MG — CEP
               32341-490
             </Text>
             <Text
@@ -583,58 +464,40 @@ export function OrcamentoPDF({
           </View>
         </View>
 
-        {/* itens */}
-        <Text style={styles.sectionLabel}>Itens do orçamento</Text>
-        {orcamento_itens.map((item, index) => {
-          const calc = calcularItem(item);
-          return (
-            <View key={item.id} style={styles.itemCard}>
-              <View style={styles.itemHeader}>
-                <View style={styles.itemHeaderLeft}>
-                  <Text style={styles.itemIndex}>{index + 1}.</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.itemDescricao}>{item.descricao}</Text>
-                    {item.descricao_detalhada && (
-                      <Text
-                        style={{
-                          fontSize: 8,
-                          color: brand.textMuted,
-                          marginTop: 2,
-                        }}
-                      >
-                        {item.descricao_detalhada}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-                <Text style={styles.itemValor}>
-                  {formatBRL(calc.comImposto)}
+        {/* itens / módulos */}
+        <Text style={styles.sectionLabel}>
+          {tipo === "por_modulo" ? "Módulos" : "Escopo do projeto"}
+        </Text>
+        {orcamento_itens.map((item, index) => (
+          <View key={item.id} style={styles.itemCard} wrap={false}>
+            <View style={styles.itemHeaderLeft}>
+              <Text style={styles.itemIndex}>{index + 1}.</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.itemDescricao}>
+                  {item.descricao || "(sem descrição)"}
                 </Text>
-              </View>
-
-              <View style={styles.breakdown}>
-                <View style={styles.breakdownItem}>
-                  <Text style={styles.breakdownLabel}>Custo base: </Text>
-                  <Text style={styles.breakdownValue}>
-                    {formatBRL(calc.custoBase)}
+                {item.descricao_detalhada && (
+                  <Text style={styles.itemDetalhe}>
+                    {item.descricao_detalhada}
                   </Text>
-                </View>
-                <View style={styles.breakdownItem}>
-                  <Text style={styles.breakdownLabel}>Com imposto: </Text>
-                  <Text style={styles.breakdownValueHighlight}>
-                    {formatBRL(calc.comImposto)}
-                  </Text>
-                </View>
+                )}
               </View>
             </View>
-          );
-        })}
+            {tipo === "por_modulo" && item.valor_manual != null && (
+              <Text style={styles.itemValor}>
+                {formatBRL(item.valor_manual)}
+              </Text>
+            )}
+          </View>
+        ))}
 
         {/* total */}
         <View style={styles.totalCard} wrap={false}>
           <View>
-            <Text style={styles.totalLabel}>Total do orçamento</Text>
-            <Text style={styles.totalValor}>{formatBRL(totalOrcamento)}</Text>
+            <Text style={styles.totalLabel}>Valor do projeto</Text>
+            <Text style={styles.totalValor}>
+              {formatBRL(calculo.valorCobrado)}
+            </Text>
           </View>
           <View style={styles.totalRight}>
             <Text style={styles.totalRightText}>

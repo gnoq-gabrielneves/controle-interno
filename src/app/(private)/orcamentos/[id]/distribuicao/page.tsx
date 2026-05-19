@@ -1,43 +1,61 @@
 "use client";
 
+import {
+  calcularOrcamento,
+  formatBRL,
+  formatPct,
+} from "@/helpers/calculo-orcamento";
 import { useGetConfiguracoes } from "@/hooks/use-configuracoes";
-import { useListFuncionarios } from "@/hooks/use-funcionarios";
-import { useListGastos } from "@/hooks/use-gastos";
 import { useGetOrcamento } from "@/hooks/use-orcamentos";
 import { useListSocietarios } from "@/hooks/use-societarios";
+import { OrcamentoTipo } from "@/types/orcamentos-types";
 import { ArrowLeftIcon } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo } from "react";
 
-function formatBRL(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(value);
-}
-function formatPct(value: number) {
-  return `${(value * 100).toFixed(2)}%`;
-}
-
+// ─── tipos vindos do banco ───
 type FuncionarioData = { id: number; name: string; salario: number };
+
 type ItemFuncionario = {
   id: string;
-  horas: number;
+  funcionario: number;
+  meses_alocados: number;
+  salario_snapshot: number;
   funcionario_data: FuncionarioData | FuncionarioData[] | null;
 };
+
 type OrcamentoItem = {
   id: string;
   descricao: string;
+  valor_manual: number | null;
   orcamento_item_funcionarios: ItemFuncionario[];
 };
+
 type OrcamentoRaw = {
   id: string;
   titulo: string;
+  tipo: OrcamentoTipo;
   margem_lucro: number;
   aliquota_imposto: number;
+  buffer_atraso: number;
   orcamento_itens: OrcamentoItem[];
 };
-type Gasto = { recorrencia: "mensal" | "anual"; valor: number };
+
+type SocietarioRaw = {
+  funcionario: number;
+  percent: number | null;
+  funcionario_data: FuncionarioData | FuncionarioData[] | null;
+};
+
+// resolve o funcionario_data que vem como obj ou array do supabase
+function pickFunc(f: {
+  funcionario_data: FuncionarioData | FuncionarioData[] | null;
+}): FuncionarioData | null {
+  if (!f.funcionario_data) return null;
+  return Array.isArray(f.funcionario_data)
+    ? (f.funcionario_data[0] ?? null)
+    : f.funcionario_data;
+}
 
 export default function DistribuicaoOrcamentoPage() {
   const { id } = useParams<{ id: string }>();
@@ -46,8 +64,6 @@ export default function DistribuicaoOrcamentoPage() {
   const { data: orcamento, isLoading: loadingOrc } = useGetOrcamento(id);
   const { data: societarios, isLoading: loadingSoc } = useListSocietarios();
   const { data: config, isLoading: loadingConfig } = useGetConfiguracoes();
-  const { data: gastos } = useListGastos();
-  const { data: funcionarios } = useListFuncionarios();
 
   const isLoading = loadingOrc || loadingSoc || loadingConfig;
 
@@ -56,81 +72,113 @@ export default function DistribuicaoOrcamentoPage() {
 
     const orc = orcamento as unknown as OrcamentoRaw;
 
-    const totalGastos =
-      (gastos as Gasto[] | undefined)?.reduce(
-        (acc, g) => acc + (g.recorrencia === "mensal" ? g.valor : g.valor / 12),
-        0,
-      ) ?? 0;
-    const totalFunc = funcionarios?.length ?? 1;
-    const overheadPorHora = totalGastos / (totalFunc * 220);
+    // 1. Calcular o valor cobrado usando o helper único.
+    //    Funciona pra projeto_fechado E por_modulo (com valor_manual).
+    const todasAlocacoes = (orc.orcamento_itens ?? []).flatMap(
+      (item) => item.orcamento_item_funcionarios ?? [],
+    );
 
-    const valorProjeto = (orc.orcamento_itens ?? []).reduce((acc, item) => {
-      const custoBaseItem = (item.orcamento_item_funcionarios ?? []).reduce(
-        (a, f) => {
-          const func = Array.isArray(f.funcionario_data)
-            ? (f.funcionario_data as unknown as FuncionarioData[])[0]
-            : (f.funcionario_data as unknown as FuncionarioData | null);
-          if (!func) return a;
-          return a + f.horas * (func.salario / 220 + overheadPorHora);
-        },
-        0,
-      );
-      const comMargem = custoBaseItem * (1 + orc.margem_lucro);
-      const comImposto = comMargem * (1 + orc.aliquota_imposto);
-      return acc + comImposto;
-    }, 0);
+    const funcionariosCalc = todasAlocacoes.map((f) => ({
+      salario: f.salario_snapshot,
+      meses: f.meses_alocados,
+    }));
 
+    const itensCalc =
+      orc.tipo === "por_modulo"
+        ? (orc.orcamento_itens ?? []).map((i) => ({ valor: i.valor_manual }))
+        : undefined;
+
+    const calc = calcularOrcamento({
+      funcionarios: funcionariosCalc,
+      bufferAtraso: orc.buffer_atraso,
+      margemLucro: orc.margem_lucro,
+      aliquotaImposto: orc.aliquota_imposto,
+      itens: itensCalc,
+    });
+
+    const valorProjeto = calc.valorCobrado;
+
+    // 2. Imposto sobre o valor cobrado (gross-up: o imposto está embutido no valor final)
     const imposto =
       (valorProjeto * orc.aliquota_imposto) / (1 + orc.aliquota_imposto);
     const valorLiquido = valorProjeto - imposto;
 
+    // 3. Consolidar pagamento por funcionário:
+    //    cada pessoa = soma(salario_snapshot × meses_alocados) em todas as alocações dela
     const pagamentosPorFuncionario: Record<
       number,
-      { name: string; valor: number; horas: number }
+      {
+        id: number;
+        name: string;
+        salario: number;
+        meses: number;
+        valor: number;
+      }
     > = {};
-    (orc.orcamento_itens ?? []).forEach((item) => {
-      (item.orcamento_item_funcionarios ?? []).forEach((f) => {
-        const func = Array.isArray(f.funcionario_data)
-          ? f.funcionario_data[0]
-          : (f.funcionario_data as FuncionarioData | null);
-        if (!func) return;
-        const valor = f.horas * (func.salario / 220);
-        if (pagamentosPorFuncionario[func.id]) {
-          pagamentosPorFuncionario[func.id].valor += valor;
-          pagamentosPorFuncionario[func.id].horas += f.horas;
-        } else {
-          pagamentosPorFuncionario[func.id] = {
-            name: func.name,
-            valor,
-            horas: f.horas,
-          };
-        }
-      });
+
+    todasAlocacoes.forEach((f) => {
+      const func = pickFunc(f);
+      if (!func) return;
+      const valor = f.salario_snapshot * f.meses_alocados;
+      if (pagamentosPorFuncionario[func.id]) {
+        pagamentosPorFuncionario[func.id].meses += f.meses_alocados;
+        pagamentosPorFuncionario[func.id].valor += valor;
+      } else {
+        pagamentosPorFuncionario[func.id] = {
+          id: func.id,
+          name: func.name,
+          salario: f.salario_snapshot,
+          meses: f.meses_alocados,
+          valor,
+        };
+      }
     });
 
-    const custoTotalEquipe = Object.values(pagamentosPorFuncionario).reduce(
-      (acc, f) => acc + f.valor,
+    // 4. Separar sócios de não-sócios.
+    //    Set de IDs dos sócios pra checagem rápida.
+    const socs = societarios as unknown as SocietarioRaw[];
+    const idsDeSocios = new Set(
+      socs.map((s) => pickFunc(s)?.id).filter((x): x is number => x != null),
+    );
+
+    const pagamentosNaoSocios = Object.values(pagamentosPorFuncionario).filter(
+      (p) => !idsDeSocios.has(p.id),
+    );
+
+    const custoNaoSocios = pagamentosNaoSocios.reduce(
+      (acc, p) => acc + p.valor,
       0,
     );
+
+    // 5. Custo total da equipe = todos os pagamentos (sócios + não-sócios)
+    //    porque sócios também recebem salário pelo trabalho no projeto
+    const custoTotalEquipe = Object.values(pagamentosPorFuncionario).reduce(
+      (acc, p) => acc + p.valor,
+      0,
+    );
+
     const lucroBruto = valorLiquido - custoTotalEquipe;
     const valorReserva = lucroBruto * config.reserva_empresa;
     const lucroDistribuivel = lucroBruto - valorReserva;
 
-    const distribuicao = societarios.map((s, index) => {
-      const func = Array.isArray(s.funcionario_data)
-        ? (s.funcionario_data as unknown as FuncionarioData[])[0]
-        : (s.funcionario_data as unknown as FuncionarioData | null);
+    // 6. Distribuição entre sócios: lucro + pagamento como funcionário (se aplicável)
+    const distribuicao = socs.map((s, index) => {
+      const func = pickFunc(s);
       const percent = s.percent ?? 0;
       const lucroSocio = lucroDistribuivel * percent;
-      const pagamentoComoFunc =
-        pagamentosPorFuncionario[func?.id ?? 0]?.valor ?? 0;
+      const pagamentoComoFunc = func
+        ? (pagamentosPorFuncionario[func.id]?.valor ?? 0)
+        : 0;
+      const mesesNoProjeto = func
+        ? (pagamentosPorFuncionario[func.id]?.meses ?? 0)
+        : 0;
       return {
-        id: func?.id ?? index,
+        id: func?.id ?? -index,
         name: func?.name ?? "—",
         percent,
         lucro: lucroSocio,
         pagamentoFunc: pagamentoComoFunc,
-        horas: pagamentosPorFuncionario[func?.id ?? 0]?.horas ?? 0,
+        meses: mesesNoProjeto,
         total: lucroSocio + pagamentoComoFunc,
       };
     });
@@ -140,16 +188,16 @@ export default function DistribuicaoOrcamentoPage() {
       imposto,
       aliquotaImposto: orc.aliquota_imposto,
       valorLiquido,
-      pagamentosPorFuncionario,
+      pagamentosNaoSocios,
+      custoNaoSocios,
       custoTotalEquipe,
-      totalGastos,
       lucroBruto,
       reservaEmpresa: config.reserva_empresa,
       valorReserva,
       lucroDistribuivel,
       distribuicao,
     };
-  }, [orcamento, societarios, config, gastos, funcionarios]);
+  }, [orcamento, societarios, config]);
 
   if (isLoading) {
     return (
@@ -169,6 +217,7 @@ export default function DistribuicaoOrcamentoPage() {
 
   const orc = orcamento as unknown as { titulo: string };
 
+  // ─── estilos compartilhados ───
   const sectionStyle = {
     background: "var(--bg-card)",
     border: "1px solid var(--border)",
@@ -182,6 +231,7 @@ export default function DistribuicaoOrcamentoPage() {
     padding: "12px 20px",
   };
 
+  // ─── linhas do resumo financeiro ───
   const resumoRows = [
     {
       label: "Valor do projeto",
@@ -202,7 +252,7 @@ export default function DistribuicaoOrcamentoPage() {
       muted: false,
     },
     {
-      label: "Custo total da equipe",
+      label: "Custo total da equipe (salário × meses)",
       value: `- ${formatBRL(calculo.custoTotalEquipe)}`,
       highlight: false,
       muted: true,
@@ -298,6 +348,7 @@ export default function DistribuicaoOrcamentoPage() {
                   : row.muted
                     ? "var(--error)"
                     : "var(--text-primary)",
+                fontVariantNumeric: "tabular-nums",
               }}
             >
               {row.value}
@@ -323,7 +374,10 @@ export default function DistribuicaoOrcamentoPage() {
           </p>
           <p
             className="text-2xl font-semibold"
-            style={{ color: "var(--warning)" }}
+            style={{
+              color: "var(--warning)",
+              fontVariantNumeric: "tabular-nums",
+            }}
           >
             {formatBRL(calculo.valorReserva)}
           </p>
@@ -343,135 +397,202 @@ export default function DistribuicaoOrcamentoPage() {
         </div>
       </div>
 
-      {/* pagamentos da equipe */}
-      <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>
-          <p
-            className="text-xs uppercase tracking-wider"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Pagamento da equipe
-          </p>
-        </div>
-        {Object.entries(calculo.pagamentosPorFuncionario).map(([funcId, f]) => (
+      {/* pagamento da equipe (apenas NÃO-sócios) */}
+      {calculo.pagamentosNaoSocios.length > 0 && (
+        <div style={sectionStyle}>
           <div
-            key={funcId}
-            className="flex justify-between items-center px-5 py-3"
-            style={{ borderBottom: "1px solid var(--border)" }}
+            style={sectionHeaderStyle}
+            className="flex justify-between items-center"
           >
-            <div className="flex items-center gap-3">
-              <div
-                className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium"
-                style={{
-                  background: "var(--primary-bg)",
-                  border: "1px solid var(--primary-border)",
-                  color: "var(--primary)",
-                }}
-              >
-                {f.name.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <p
-                  className="text-sm font-medium"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  {f.name}
-                </p>
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  {f.horas}h trabalhadas
-                </p>
-              </div>
-            </div>
-            <span
-              className="text-sm font-medium"
-              style={{ color: "var(--text-secondary)" }}
+            <p
+              className="text-xs uppercase tracking-wider"
+              style={{ color: "var(--text-muted)" }}
             >
-              {formatBRL(f.valor)}
+              Pagamento da equipe
+            </p>
+            <span className="text-xs" style={{ color: "var(--text-faint)" }}>
+              Não-sócios apenas. Sócios aparecem abaixo com lucro incluso.
             </span>
           </div>
-        ))}
-      </div>
 
-      {/* distribuição dos sócios */}
-      <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>
-          <p
-            className="text-xs uppercase tracking-wider"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Distribuição dos sócios
-          </p>
-        </div>
-        {calculo.distribuicao.map((d) => (
-          <div key={d.id} style={{ borderBottom: "1px solid var(--border)" }}>
-            <div className="flex justify-between items-center px-5 py-3">
+          {calculo.pagamentosNaoSocios.map((f, i) => (
+            <div
+              key={f.id}
+              className="flex justify-between items-center px-5 py-3"
+              style={{
+                borderBottom:
+                  i < calculo.pagamentosNaoSocios.length - 1
+                    ? "1px solid var(--border)"
+                    : "none",
+              }}
+            >
               <div className="flex items-center gap-3">
                 <div
                   className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium"
                   style={{
-                    background: "var(--secondary-bg)",
-                    border: "1px solid var(--secondary-border)",
-                    color: "var(--secondary)",
+                    background: "var(--primary-bg)",
+                    border: "1px solid var(--primary-border)",
+                    color: "var(--primary)",
                   }}
                 >
-                  {d.name.charAt(0).toUpperCase()}
+                  {f.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <p
                     className="text-sm font-medium"
                     style={{ color: "var(--text-primary)" }}
                   >
-                    {d.name}
+                    {f.name}
                   </p>
                   <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    Participação: {formatPct(d.percent)}
+                    {formatBRL(f.salario)}/mês · {f.meses} meses no projeto
                   </p>
                 </div>
               </div>
-              <div className="text-right">
-                <p
-                  className="text-xs mb-1"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Total a receber
-                </p>
-                <p
-                  className="text-base font-semibold"
-                  style={{ color: "var(--primary)" }}
-                >
-                  {formatBRL(d.total)}
-                </p>
-              </div>
+              <span
+                className="text-sm font-medium"
+                style={{
+                  color: "var(--text-secondary)",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {formatBRL(f.valor)}
+              </span>
             </div>
-            <div className="px-5 pb-3 flex gap-6">
-              <div>
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  Lucro ({formatPct(d.percent)})
-                </p>
-                <p
-                  className="text-sm"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  {formatBRL(d.lucro)}
-                </p>
+          ))}
+
+          {/* footer com total dos não-sócios */}
+          <div
+            className="flex justify-between items-center px-5 py-3"
+            style={{
+              background: "var(--bg-card-alt)",
+              borderTop: "1px solid var(--border)",
+            }}
+          >
+            <span
+              className="text-xs uppercase tracking-wider font-medium"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Total a pagar (não-sócios)
+            </span>
+            <span
+              className="text-sm font-semibold"
+              style={{
+                color: "var(--primary)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {formatBRL(calculo.custoNaoSocios)}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* distribuição dos sócios */}
+      {calculo.distribuicao.length > 0 && (
+        <div style={sectionStyle}>
+          <div style={sectionHeaderStyle}>
+            <p
+              className="text-xs uppercase tracking-wider"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Distribuição dos sócios
+            </p>
+          </div>
+          {calculo.distribuicao.map((d, i) => (
+            <div
+              key={d.id}
+              style={{
+                borderBottom:
+                  i < calculo.distribuicao.length - 1
+                    ? "1px solid var(--border)"
+                    : "none",
+              }}
+            >
+              <div className="flex justify-between items-center px-5 py-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium"
+                    style={{
+                      background: "var(--secondary-bg)",
+                      border: "1px solid var(--secondary-border)",
+                      color: "var(--secondary)",
+                    }}
+                  >
+                    {d.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p
+                      className="text-sm font-medium"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {d.name}
+                    </p>
+                    <p
+                      className="text-xs"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      Participação: {formatPct(d.percent)}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p
+                    className="text-xs mb-1"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Total a receber
+                  </p>
+                  <p
+                    className="text-base font-semibold"
+                    style={{
+                      color: "var(--primary)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {formatBRL(d.total)}
+                  </p>
+                </div>
               </div>
-              {d.pagamentoFunc > 0 && (
+              <div className="px-5 pb-3 flex gap-6">
                 <div>
                   <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    Pagamento pelo projeto
+                    Lucro ({formatPct(d.percent)})
                   </p>
                   <p
                     className="text-sm"
-                    style={{ color: "var(--text-secondary)" }}
+                    style={{
+                      color: "var(--text-secondary)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
                   >
-                    {formatBRL(d.pagamentoFunc)}
+                    {formatBRL(d.lucro)}
                   </p>
                 </div>
-              )}
+                {d.pagamentoFunc > 0 && (
+                  <div>
+                    <p
+                      className="text-xs"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      Pagamento pelo projeto ({d.meses} meses)
+                    </p>
+                    <p
+                      className="text-sm"
+                      style={{
+                        color: "var(--text-secondary)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {formatBRL(d.pagamentoFunc)}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

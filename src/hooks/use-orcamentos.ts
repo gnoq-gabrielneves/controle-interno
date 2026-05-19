@@ -1,5 +1,6 @@
 import {
   CreateOrcamento,
+  DeleteOrcamento,
   GetOrcamento,
   GetOrcamentosStats,
   ListOrcamentos,
@@ -80,5 +81,21 @@ export function useOrcamentosStats() {
   return useQuery({
     queryKey: ["orcamentos-stats"],
     queryFn: GetOrcamentosStats,
+  });
+}
+
+export function useDeleteOrcamento() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: DeleteOrcamento,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["list-orcamentos"] });
+      queryClient.invalidateQueries({ queryKey: ["orcamentos-stats"] });
+      toast.success("Orçamento excluído.");
+    },
+    onError: (error: Error) => {
+      toast.error("Erro ao excluir orçamento.");
+      console.error(error.message);
+    },
   });
 }

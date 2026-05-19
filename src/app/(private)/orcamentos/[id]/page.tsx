@@ -2,6 +2,14 @@
 
 import { OrcamentoPDF } from "@/components/OrcamentoPdf/OrcamentoPdf";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -14,6 +22,7 @@ import {
   formatPct,
 } from "@/helpers/calculo-orcamento";
 import {
+  useDeleteOrcamento,
   useGetOrcamento,
   useUpdateOrcamentoStatus,
 } from "@/hooks/use-orcamentos";
@@ -24,8 +33,10 @@ import {
   CalculatorIcon,
   DownloadIcon,
   PencilIcon,
+  Trash2Icon,
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 
 const statusConfig: Record<
   OrcamentoStatus,
@@ -105,7 +116,6 @@ type OrcamentoDetalhe = {
   orcamento_itens: OrcamentoItem[];
 };
 
-// resolve o `funcionario_data` que vem do supabase como objeto OU array dependendo da query
 function pickFunc(f: ItemFuncionario): FuncionarioData | null {
   if (!f.funcionario_data) return null;
   return Array.isArray(f.funcionario_data)
@@ -141,9 +151,27 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
   const router = useRouter();
   const { mutate: updateStatus, isPending: updatingStatus } =
     useUpdateOrcamentoStatus(orcamento.id);
+  const { mutate: deleteOrcamento, isPending: deleting } = useDeleteOrcamento();
 
-  // monta os funcionários alocados pro cálculo, independente do tipo
-  // (todos os itens, todas as alocações, achatado)
+  // ─── estado do dialog de exclusão ───
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+
+  // exige que o usuário digite o título (case-insensitive, trim) pra liberar o botão
+  const canDelete =
+    confirmText.trim().toLowerCase() === orcamento.titulo.trim().toLowerCase();
+
+  function handleDelete() {
+    if (!canDelete) return;
+    deleteOrcamento(orcamento.id, {
+      onSuccess: () => {
+        setConfirmOpen(false);
+        router.push("/orcamentos");
+      },
+    });
+  }
+
+  // ─── cálculo ───
   const todasAlocacoes = (orcamento.orcamento_itens ?? []).flatMap(
     (item) => item.orcamento_item_funcionarios ?? [],
   );
@@ -168,7 +196,6 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
     itens: itensCalc,
   });
 
-  // agrupa pagamentos por funcionário (usado pra mostrar a equipe consolidada)
   const equipeConsolidada = Object.values(
     todasAlocacoes.reduce<
       Record<
@@ -243,7 +270,6 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
     overflow: "hidden" as const,
   };
 
-  // breakdown lines pra calculadora (igual ao novo/editar)
   const breakdownLines = [
     {
       label: "Custo da equipe",
@@ -396,6 +422,27 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
               {btn.label}
             </button>
           ))}
+
+          {/* botão de excluir — visualmente perigoso, separado dos outros */}
+          <button
+            onClick={() => setConfirmOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-all"
+            style={{
+              border: "1px solid var(--error-border, rgba(185,28,28,0.30))",
+              color: "var(--error, #b91c1c)",
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.backgroundColor =
+                "var(--error-bg, rgba(185,28,28,0.10))")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.backgroundColor = "transparent")
+            }
+            title="Excluir orçamento"
+          >
+            <Trash2Icon className="w-4 h-4" />
+            Excluir
+          </button>
 
           <button
             onClick={handleExportPDF}
@@ -616,7 +663,6 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
             </div>
           ))}
 
-          {/* footer com soma */}
           <div
             className="grid items-center gap-2 px-5 py-3"
             style={{
@@ -745,6 +791,112 @@ function OrcamentoDetail({ orcamento }: { orcamento: OrcamentoDetalhe }) {
           </p>
         </div>
       )}
+
+      {/* ─────────────────────────────────────────────────── */}
+      {/* DIALOG DE CONFIRMAÇÃO — exige digitar o título */}
+      {/* ─────────────────────────────────────────────────── */}
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={(open) => {
+          setConfirmOpen(open);
+          if (!open) setConfirmText("");
+        }}
+      >
+        <DialogContent
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                style={{
+                  background: "var(--error-bg, rgba(185,28,28,0.10))",
+                  border: "1px solid var(--error-border, rgba(185,28,28,0.30))",
+                }}
+              >
+                <AlertTriangleIcon
+                  className="w-5 h-5"
+                  style={{ color: "var(--error, #b91c1c)" }}
+                />
+              </div>
+              <DialogTitle style={{ color: "var(--text-primary)" }}>
+                Excluir orçamento
+              </DialogTitle>
+            </div>
+            <DialogDescription
+              className="text-sm leading-relaxed"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Essa ação <strong>não pode ser desfeita</strong>. O orçamento, os
+              itens/módulos e todas as alocações de equipe serão removidos
+              permanentemente do banco de dados.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-2 my-2">
+            <label
+              className="text-xs uppercase tracking-wider"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Pra confirmar, digite o título do orçamento abaixo:
+            </label>
+            <p
+              className="text-sm font-mono px-3 py-2 rounded"
+              style={{
+                background: "var(--bg-card-alt)",
+                color: "var(--text-secondary)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              {orcamento.titulo}
+            </p>
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="Digite o título exatamente"
+              autoFocus
+              className="px-3 py-2 rounded text-sm outline-none transition-all"
+              style={{
+                background: "var(--bg-card)",
+                border: `1px solid ${canDelete ? "var(--success, #15803d)" : "var(--border)"}`,
+                color: "var(--text-primary)",
+              }}
+            />
+          </div>
+
+          <DialogFooter className="flex gap-2 justify-end">
+            <button
+              type="button"
+              onClick={() => setConfirmOpen(false)}
+              disabled={deleting}
+              className="px-4 py-2 rounded-lg text-sm transition-all disabled:opacity-50"
+              style={{
+                border: "1px solid var(--border)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={!canDelete || deleting}
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{
+                background: "var(--error, #b91c1c)",
+                color: "#ffffff",
+                border: "1px solid var(--error, #b91c1c)",
+              }}
+            >
+              {deleting ? "Excluindo..." : "Excluir permanentemente"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

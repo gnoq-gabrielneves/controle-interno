@@ -190,19 +190,33 @@ export async function UpdateOrcamento(id: string, input: CreateOrcamentoInput) {
 // Traz já com snapshot do salário (não depende mais do cadastro).
 // ─────────────────────────────────────────────────────────
 export async function GetOrcamentosStats() {
-  const { data, error } = await supabase.from("orcamentos").select(
-    `
-      id, status, tipo, created_at,
+  const { data, error } = await supabase
+    .from("orcamentos")
+    .select(
+      `
+      id, titulo, status, tipo, created_at,
       margem_lucro, aliquota_imposto, buffer_atraso,
+      validade_dias,
+      cliente (id, nome),
       orcamento_itens (
         id, valor_manual,
         orcamento_item_funcionarios (
-          meses_alocados, salario_snapshot
+          funcionario, meses_alocados, salario_snapshot
         )
       )
     `,
-  );
+    )
+    .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
   return data;
+}
+
+// ─────────────────────────────────────────────────────────
+// DELETE — remove orçamento (cascade deleta itens e alocações)
+// ─────────────────────────────────────────────────────────
+export async function DeleteOrcamento(id: string): Promise<void> {
+  const { error } = await supabase.from("orcamentos").delete().eq("id", id);
+
+  if (error) throw new Error(error.message);
 }
