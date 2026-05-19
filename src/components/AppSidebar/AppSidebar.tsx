@@ -40,7 +40,7 @@ const menuItems = {
   investimentos: [
     { label: "Gastos", url: "/gastos", icon: DollarSignIcon },
     { label: "Orçamentos", url: "/orcamentos", icon: TagIcon },
-    { label: "Distribuição", url: "/distribuicao", icon: BoxIcon },
+    { label: "Rodadas", url: "/distribuicao", icon: BoxIcon },
   ],
   sistema: [{ label: "DevBlogs", url: "/devblogs", icon: CpuIcon }],
   auditoria: [
