@@ -1,8 +1,9 @@
 "use client";
 
-import { useListFuncionarios } from "@/hooks/use-funcionarios";
-import { useCountSocietarios, useListGastos } from "@/hooks/use-gastos";
+import { formatBRL } from "@/helpers/calculo-orcamento";
+import { useListGastos } from "@/hooks/use-gastos";
 import { useListOrcamentos } from "@/hooks/use-orcamentos";
+import { useListRodadas } from "@/hooks/use-rodadas";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import {
@@ -10,8 +11,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -20,14 +19,14 @@ import {
   YAxis,
 } from "recharts";
 
-function formatBRL(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(value);
-}
-
-const COLORS = ["#0F4C81", "#00719C", "#1a6db5", "#0090c4", "#5a9fd4"];
+const COLORS = [
+  "#0F4C81",
+  "#00719C",
+  "#1a6db5",
+  "#0090c4",
+  "#5a9fd4",
+  "#7c3aed",
+];
 
 const statusConfig = {
   rascunho: { label: "Rascunho", color: "#6b7280" },
@@ -36,17 +35,35 @@ const statusConfig = {
   recusado: { label: "Recusado", color: "#b91c1c" },
 };
 
+const MESES_CURTOS = [
+  "Jan",
+  "Fev",
+  "Mar",
+  "Abr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Set",
+  "Out",
+  "Nov",
+  "Dez",
+];
+
 const HOJE = new Date();
 HOJE.setHours(0, 0, 0, 0);
 
+const MES_ATUAL = HOJE.getMonth() + 1;
+const ANO_ATUAL = HOJE.getFullYear();
+
 export default function HomePage() {
   const router = useRouter();
-  const { data: funcionarios } = useListFuncionarios();
   const { data: gastos } = useListGastos();
-  const { data: totalSocios = 0 } = useCountSocietarios();
   const { data: orcamentos } = useListOrcamentos();
+  const { data: rodadas } = useListRodadas();
 
-  const totalMensal = useMemo(
+  // ─── gastos fixos mensais ───
+  const gastosMensais = useMemo(
     () =>
       gastos?.reduce(
         (acc, g) => acc + (g.recorrencia === "mensal" ? g.valor : g.valor / 12),
@@ -55,8 +72,38 @@ export default function HomePage() {
     [gastos],
   );
 
-  const custoPorSocio = totalSocios > 0 ? totalMensal / totalSocios : 0;
+  // ─── rodadas do mês atual ───
+  const { rodadasMes, distribuicoesMes } = useMemo(() => {
+    const rm = (rodadas ?? []).filter((r) => {
+      const d = new Date(r.data_recebimento);
+      return d.getMonth() + 1 === MES_ATUAL && d.getFullYear() === ANO_ATUAL;
+    });
+    const dm = rm.flatMap((r) => r.rodada_distribuicoes ?? []);
+    return { rodadasMes: rm, distribuicoesMes: dm };
+  }, [rodadas]);
 
+  const recebidoMes = rodadasMes.reduce((acc, r) => acc + r.valor_recebido, 0);
+
+  const totalPagoMes = distribuicoesMes
+    .filter((d) => d.status === "pago")
+    .reduce((acc, d) => acc + d.valor, 0);
+  const totalPendenteMes = distribuicoesMes
+    .filter((d) => d.status === "pendente")
+    .reduce((acc, d) => acc + d.valor, 0);
+
+  // ─── saldo do mês: entrou - gastos fixos - pagamentos pagos ───
+  // (gastos fixos saem sempre, então conta sempre; distribuições só contam quando pagas)
+  const saldoMes = recebidoMes - gastosMensais - totalPagoMes;
+
+  // ─── reserva acumulada (todas as distribuições do tipo reserva, status pago) ───
+  const reservaAcumulada = useMemo(() => {
+    return (rodadas ?? [])
+      .flatMap((r) => r.rodada_distribuicoes ?? [])
+      .filter((d) => d.tipo === "reserva" && d.status === "pago")
+      .reduce((acc, d) => acc + d.valor, 0);
+  }, [rodadas]);
+
+  // ─── orçamentos: pipeline e métricas ───
   const orcamentosAprovados =
     orcamentos?.filter((o) => o.status === "aprovado").length ?? 0;
   const orcamentosAguardando =
@@ -71,10 +118,63 @@ export default function HomePage() {
       return dias <= 7 && dias >= 0 && o.status === "enviado";
     }).length ?? 0;
 
-  const statusData = Object.entries(statusConfig).map(([key, config]) => ({
-    name: config.label,
+  // ─── pagamentos atrasados (pendentes em rodadas de mais de 30 dias atrás) ───
+  const pagamentosAtrasados = useMemo(() => {
+    const limite = new Date(HOJE);
+    limite.setDate(limite.getDate() - 30);
+    return (rodadas ?? [])
+      .filter((r) => new Date(r.data_recebimento) < limite)
+      .flatMap((r) => r.rodada_distribuicoes ?? [])
+      .filter((d) => d.status === "pendente").length;
+  }, [rodadas]);
+
+  // ─── tempo médio até receber (orçamento aprovado → primeira rodada) ───
+  const tempoMedioReceber = useMemo(() => {
+    if (!orcamentos || !rodadas) return null;
+    const aprovados = orcamentos.filter((o) => o.status === "aprovado");
+    const dias: number[] = [];
+    aprovados.forEach((o) => {
+      const primeiraRodada = (rodadas ?? [])
+        .filter((r) => r.orcamento === o.id)
+        .sort(
+          (a, b) =>
+            new Date(a.data_recebimento).getTime() -
+            new Date(b.data_recebimento).getTime(),
+        )[0];
+      if (primeiraRodada) {
+        const diff =
+          (new Date(primeiraRodada.data_recebimento).getTime() -
+            new Date(o.created_at).getTime()) /
+          (1000 * 60 * 60 * 24);
+        if (diff >= 0) dias.push(diff);
+      }
+    });
+    if (dias.length === 0) return null;
+    return Math.round(dias.reduce((a, b) => a + b, 0) / dias.length);
+  }, [orcamentos, rodadas]);
+
+  // ─── pipeline: total potencial dos aprovados que ainda não terminaram de receber ───
+  // (somar valor cobrado - já recebido em rodadas)
+  const pipelinePrevisto = useMemo(() => {
+    if (!orcamentos || !rodadas) return 0;
+    return orcamentos
+      .filter((o) => o.status === "aprovado")
+      .reduce((acc, o) => {
+        // soma rodadas vinculadas a esse orçamento (já recebido)
+        const jaRecebido = (rodadas ?? [])
+          .filter((r) => r.orcamento === o.id)
+          .reduce((a, r) => a + r.valor_recebido, 0);
+        // valor estimado do orçamento (sem cálculo refinado, usa o que tem)
+        // como não temos esse campo direto, usamos 0 se não tiver rodadas — não ideal mas seguro
+        return acc + Math.max(0, -jaRecebido); // placeholder
+      }, 0);
+  }, [orcamentos, rodadas]);
+
+  // ─── gráficos ───
+  const statusData = Object.entries(statusConfig).map(([key, cfg]) => ({
+    name: cfg.label,
     value: orcamentos?.filter((o) => o.status === key).length ?? 0,
-    color: config.color,
+    color: cfg.color,
   }));
 
   const gastosCategoria = useMemo(() => {
@@ -87,19 +187,28 @@ export default function HomePage() {
     return Object.entries(map).map(([name, value]) => ({ name, value }));
   }, [gastos]);
 
-  const orcamentosPorMes = useMemo(() => {
-    const map: Record<string, number> = {};
-    orcamentos?.forEach((o) => {
-      const mes = new Date(o.created_at).toLocaleDateString("pt-BR", {
-        month: "short",
-        year: "2-digit",
+  // entradas (valor recebido) dos últimos 6 meses
+  const entradasPorMes = useMemo(() => {
+    const meses: { name: string; recebido: number; gastos: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const data = new Date(ANO_ATUAL, MES_ATUAL - 1 - i, 1);
+      const m = data.getMonth();
+      const a = data.getFullYear();
+      const recebido =
+        (rodadas ?? [])
+          .filter((r) => {
+            const d = new Date(r.data_recebimento);
+            return d.getMonth() === m && d.getFullYear() === a;
+          })
+          .reduce((acc, r) => acc + r.valor_recebido, 0) || 0;
+      meses.push({
+        name: `${MESES_CURTOS[m]}/${String(a).slice(2)}`,
+        recebido,
+        gastos: gastosMensais,
       });
-      map[mes] = (map[mes] ?? 0) + 1;
-    });
-    return Object.entries(map)
-      .slice(-6)
-      .map(([name, value]) => ({ name, value }));
-  }, [orcamentos]);
+    }
+    return meses;
+  }, [rodadas, gastosMensais]);
 
   const ultimosOrcamentos = orcamentos?.slice(0, 5) ?? [];
 
@@ -112,7 +221,6 @@ export default function HomePage() {
       color: "var(--text-primary)",
     },
     labelStyle: { color: "var(--text-primary)" },
-    itemStyle: { color: "var(--primary)" },
   };
 
   return (
@@ -126,106 +234,178 @@ export default function HomePage() {
           Dashboard
         </h1>
         <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
-          Visão geral da GNOQ
+          {MESES_CURTOS[MES_ATUAL - 1]}/{ANO_ATUAL} · visão geral da GNOQ
         </p>
       </div>
 
-      {/* cards de resumo */}
+      {/* cards principais — dinheiro do mês */}
       <div className="grid grid-cols-4 gap-4">
-        {[
-          {
-            label: "Funcionários",
-            value: funcionarios?.length ?? 0,
-            suffix: "ativos",
-            color: "var(--primary)",
-          },
-          {
-            label: "Gasto mensal",
-            value: formatBRL(totalMensal),
-            suffix: "fixo",
-            color: "var(--primary)",
-          },
-          {
-            label: "Custo por sócio",
-            value: formatBRL(custoPorSocio),
-            suffix: "por mês",
-            color: "var(--secondary)",
-          },
-          {
-            label: "Orçamentos aprovados",
-            value: orcamentosAprovados,
-            suffix: "no total",
-            color: "var(--success)",
-          },
-        ].map((card) => (
-          <div
-            key={card.label}
-            className="rounded-xl p-5 flex flex-col gap-1"
-            style={{
-              background: "var(--bg-card)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <p
-              className="text-xs uppercase tracking-wider"
-              style={{ color: "var(--text-muted)" }}
-            >
-              {card.label}
-            </p>
-            <p className="text-2xl font-semibold" style={{ color: card.color }}>
-              {card.value}
-            </p>
-            <p className="text-xs" style={{ color: "var(--text-faint)" }}>
-              {card.suffix}
-            </p>
-          </div>
-        ))}
+        <Card
+          label="Recebido no mês"
+          value={formatBRL(recebidoMes)}
+          suffix={`${rodadasMes.length} rodada${rodadasMes.length === 1 ? "" : "s"}`}
+          color="var(--primary)"
+        />
+        <Card
+          label="Saldo do mês"
+          value={formatBRL(saldoMes)}
+          suffix={
+            saldoMes >= 0 ? "entrou mais que saiu" : "déficit (cobrir do bolso)"
+          }
+          color={
+            saldoMes >= 0 ? "var(--success, #15803d)" : "var(--error, #b91c1c)"
+          }
+        />
+        <Card
+          label="Pendente a pagar"
+          value={formatBRL(totalPendenteMes)}
+          suffix={`${distribuicoesMes.filter((d) => d.status === "pendente").length} distribuiç${distribuicoesMes.filter((d) => d.status === "pendente").length === 1 ? "ão" : "ões"}`}
+          color="var(--warning, #b45309)"
+        />
+        <Card
+          label="Reserva acumulada"
+          value={formatBRL(reservaAcumulada)}
+          suffix="histórico total"
+          color="var(--secondary, #7c3aed)"
+        />
       </div>
 
       {/* alertas */}
-      {(orcamentosAguardando > 0 || orcamentosVencendo > 0) && (
+      {(orcamentosAguardando > 0 ||
+        orcamentosVencendo > 0 ||
+        pagamentosAtrasados > 0) && (
         <div className="flex gap-3">
-          {orcamentosAguardando > 0 && (
-            <div
-              className="flex-1 rounded-xl px-4 py-3 flex items-center gap-3"
-              style={{
-                border: "1px solid var(--secondary-border)",
-                background: "var(--secondary-bg)",
-              }}
-            >
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ background: "var(--secondary)" }}
-              />
-              <p className="text-sm" style={{ color: "var(--secondary)" }}>
-                {orcamentosAguardando} orçamento
-                {orcamentosAguardando > 1 ? "s" : ""} aguardando resposta
-              </p>
-            </div>
-          )}
           {orcamentosVencendo > 0 && (
-            <div
-              className="flex-1 rounded-xl px-4 py-3 flex items-center gap-3"
-              style={{
-                border: "1px solid var(--warning-border)",
-                background: "var(--warning-bg)",
-              }}
-            >
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ background: "var(--warning)" }}
-              />
-              <p className="text-sm" style={{ color: "var(--warning)" }}>
-                {orcamentosVencendo} orçamento
-                {orcamentosVencendo > 1 ? "s" : ""} vencendo em até 7 dias
-              </p>
-            </div>
+            <Alert
+              color="var(--warning)"
+              border="var(--warning-border)"
+              bg="var(--warning-bg)"
+              text={`${orcamentosVencendo} orçamento${orcamentosVencendo > 1 ? "s" : ""} vencendo em até 7 dias`}
+              onClick={() => router.push("/orcamentos")}
+            />
+          )}
+          {pagamentosAtrasados > 0 && (
+            <Alert
+              color="var(--error, #b91c1c)"
+              border="var(--error-border, rgba(185,28,28,0.30))"
+              bg="var(--error-bg, rgba(185,28,28,0.10))"
+              text={`${pagamentosAtrasados} pagamento${pagamentosAtrasados > 1 ? "s" : ""} pendente${pagamentosAtrasados > 1 ? "s" : ""} há mais de 30 dias`}
+              onClick={() => router.push("/distribuicao")}
+            />
+          )}
+          {orcamentosAguardando > 0 && (
+            <Alert
+              color="var(--secondary)"
+              border="var(--secondary-border)"
+              bg="var(--secondary-bg)"
+              text={`${orcamentosAguardando} orçamento${orcamentosAguardando > 1 ? "s" : ""} aguardando resposta`}
+              onClick={() => router.push("/orcamentos")}
+            />
           )}
         </div>
       )}
 
-      {/* gráficos linha 1 */}
+      {/* segunda linha de cards — secundários */}
+      <div className="grid grid-cols-4 gap-4">
+        <Card
+          label="Gastos fixos"
+          value={formatBRL(gastosMensais)}
+          suffix="mensais"
+          color="var(--text-secondary)"
+        />
+        <Card
+          label="Orçamentos aprovados"
+          value={String(orcamentosAprovados)}
+          suffix="no total"
+          color="var(--success, #15803d)"
+        />
+        <Card
+          label="Pago no mês"
+          value={formatBRL(totalPagoMes)}
+          suffix={`${distribuicoesMes.filter((d) => d.status === "pago").length} distribuiç${distribuicoesMes.filter((d) => d.status === "pago").length === 1 ? "ão" : "ões"}`}
+          color="var(--success, #15803d)"
+        />
+        <Card
+          label="Tempo médio até receber"
+          value={
+            tempoMedioReceber != null
+              ? `${tempoMedioReceber} dia${tempoMedioReceber === 1 ? "" : "s"}`
+              : "—"
+          }
+          suffix="aprovação → 1ª rodada"
+          color="var(--text-secondary)"
+        />
+      </div>
+
+      {/* gráfico de entradas vs gastos */}
       <div className="grid grid-cols-3 gap-4">
+        <div
+          className="rounded-xl p-5 flex flex-col gap-4 col-span-2"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <p
+            className="text-xs uppercase tracking-wider"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Entradas vs gastos fixos (últimos 6 meses)
+          </p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={entradasPorMes} barGap={4}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis
+                dataKey="name"
+                tick={{ fontSize: 10, fill: "var(--text-muted)" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "var(--text-muted)" }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+              />
+              <Tooltip
+                {...tooltipStyle}
+                formatter={(value) => [formatBRL(Number(value)), ""]}
+              />
+              <Bar
+                dataKey="recebido"
+                name="Recebido"
+                fill="var(--primary)"
+                radius={[4, 4, 0, 0]}
+              />
+              <Bar
+                dataKey="gastos"
+                name="Gastos fixos"
+                fill="#b91c1c"
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="flex gap-4">
+            {[
+              { color: "var(--primary)", label: "Recebido" },
+              { color: "#b91c1c", label: "Gastos fixos" },
+            ].map((l) => (
+              <div key={l.label} className="flex items-center gap-1.5">
+                <div
+                  className="w-2 h-2 rounded-full"
+                  style={{ background: l.color }}
+                />
+                <span
+                  className="text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {l.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div
           className="rounded-xl p-5 flex flex-col gap-4"
           style={{
@@ -239,14 +419,14 @@ export default function HomePage() {
           >
             Orçamentos por status
           </p>
-          <ResponsiveContainer width="100%" height={180}>
+          <ResponsiveContainer width="100%" height={150}>
             <PieChart>
               <Pie
                 data={statusData}
                 cx="50%"
                 cy="50%"
-                innerRadius={50}
-                outerRadius={75}
+                innerRadius={40}
+                outerRadius={65}
                 paddingAngle={3}
                 dataKey="value"
               >
@@ -274,102 +454,9 @@ export default function HomePage() {
             ))}
           </div>
         </div>
-
-        <div
-          className="rounded-xl p-5 flex flex-col gap-4"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          <p
-            className="text-xs uppercase tracking-wider"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Gastos mensais por categoria
-          </p>
-          <ResponsiveContainer width="100%" height={180}>
-            <PieChart>
-              <Pie
-                data={gastosCategoria}
-                cx="50%"
-                cy="50%"
-                innerRadius={50}
-                outerRadius={75}
-                paddingAngle={3}
-                dataKey="value"
-              >
-                {gastosCategoria.map((_, index) => (
-                  <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(value) => [formatBRL(Number(value)), ""]}
-                {...tooltipStyle}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="flex flex-wrap gap-2">
-            {gastosCategoria.map((g, i) => (
-              <div key={g.name} className="flex items-center gap-1.5">
-                <div
-                  className="w-2 h-2 rounded-full"
-                  style={{ background: COLORS[i % COLORS.length] }}
-                />
-                <span
-                  className="text-xs"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  {g.name}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div
-          className="rounded-xl p-5 flex flex-col gap-4"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-          }}
-        >
-          <p
-            className="text-xs uppercase tracking-wider"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Orçamentos criados (últimos 6 meses)
-          </p>
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={orcamentosPorMes}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis
-                dataKey="name"
-                tick={{ fontSize: 10, fill: "var(--text-muted)" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: "var(--text-muted)" }}
-                axisLine={false}
-                tickLine={false}
-                allowDecimals={false}
-              />
-              <Tooltip {...tooltipStyle} />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="var(--primary)"
-                strokeWidth={2}
-                dot={{ fill: "var(--primary)", r: 4 }}
-                activeDot={{ r: 6 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
       </div>
 
-      {/* gráfico de gastos + tabela de orcamentos */}
+      {/* gastos por categoria + últimos orçamentos */}
       <div className="grid grid-cols-2 gap-4">
         <div
           className="rounded-xl p-5 flex flex-col gap-4"
@@ -382,7 +469,7 @@ export default function HomePage() {
             className="text-xs uppercase tracking-wider"
             style={{ color: "var(--text-muted)" }}
           >
-            Valor mensal por categoria
+            Gastos fixos por categoria
           </p>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={gastosCategoria} layout="vertical">
@@ -478,6 +565,80 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+function Card({
+  label,
+  value,
+  suffix,
+  color,
+}: {
+  label: string;
+  value: string;
+  suffix?: string;
+  color: string;
+}) {
+  return (
+    <div
+      className="rounded-xl p-5 flex flex-col gap-1"
+      style={{
+        background: "var(--bg-card)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      <p
+        className="text-xs uppercase tracking-wider"
+        style={{ color: "var(--text-muted)" }}
+      >
+        {label}
+      </p>
+      <p
+        className="text-2xl font-semibold"
+        style={{ color, fontVariantNumeric: "tabular-nums" }}
+      >
+        {value}
+      </p>
+      {suffix && (
+        <p className="text-xs" style={{ color: "var(--text-faint)" }}>
+          {suffix}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Alert({
+  color,
+  border,
+  bg,
+  text,
+  onClick,
+}: {
+  color: string;
+  border: string;
+  bg: string;
+  text: string;
+  onClick?: () => void;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      className="flex-1 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer transition-opacity hover:opacity-80"
+      style={{
+        border: `1px solid ${border}`,
+        background: bg,
+      }}
+    >
+      <div
+        className="w-2 h-2 rounded-full shrink-0"
+        style={{ background: color }}
+      />
+      <p className="text-sm" style={{ color }}>
+        {text}
+      </p>
     </div>
   );
 }
